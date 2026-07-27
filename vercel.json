@@ -1,18 +1,15 @@
 {
-  "version": 2,
   "builds": [
     {
       "src": "api/index.py",
       "use": "@vercel/python",
       "config": {
+        "includeFiles": ["index.html", "*.py"],
         "runtime": "python3.11"
       }
     }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
-    }
+    { "src": "/(.*)", "dest": "api/index.py" }
   ]
 }
