@@ -49,11 +49,11 @@ INDEX_FILE = BASE_DIR / "index.html"
 @app.on_event("startup")
 def _print_config_status_on_boot() -> None:
     """
-    Print exactly what this running process sees for the Supabase config,
-    straight to the uvicorn console, the moment it starts. No browser, no
-    curl, no caching — if this print is wrong, the .env truly isn't being
-    picked up by THIS process; if it's right here but the browser still
-    disagrees, the browser is talking to something other than this server.
+    Print exactly what this running process sees for Supabase + DB config,
+    straight to the server console, the moment it starts. This is the most
+    reliable way to confirm what a deployed process actually loaded — no
+    browser, no CLI, no caching. The DB URL is printed with the password
+    redacted, so this is safe to look at directly in Vercel's log viewer.
     """
     url = (os.getenv("SUPABASE_URL") or "").strip()
     anon_key = (os.getenv("SUPABASE_ANON_KEY") or "").strip()
@@ -62,6 +62,24 @@ def _print_config_status_on_boot() -> None:
     print(f"  SUPABASE_URL      : {url or '(MISSING)'}")
     print(f"  SUPABASE_ANON_KEY : {'set (' + str(len(anon_key)) + ' chars)' if anon_key else '(MISSING)'}")
     print(f"  auth_configured   : {bool(url and anon_key)}")
+
+    try:
+        from database import resolve_database_url
+
+        db_url = resolve_database_url()
+        # Redact credentials — split on the LAST '@', since a password that
+        # itself contains '@' (the exact bug we're chasing) would otherwise
+        # leak a fragment of it here. Only the true host/port/path is shown.
+        if "@" in db_url and "://" in db_url:
+            scheme, after_scheme = db_url.split("://", 1)
+            _creds, _, host_part = after_scheme.rpartition("@")
+            safe_db_url = f"{scheme}://***:***@{host_part}"
+        else:
+            safe_db_url = db_url
+        print(f"  DATABASE_URL host : {safe_db_url}")
+    except Exception as exc:  # noqa: BLE001 — this is diagnostic only, never block startup
+        print(f"  DATABASE_URL host : (could not resolve — {type(exc).__name__}: {exc})")
+
     print("=" * 60)
 
 
