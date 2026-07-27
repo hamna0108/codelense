@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CodeLens AI — Structural Code Grading</title>
+<meta name="description" content="AI-graded architectural review for student code submissions." />
+
+<script>
+  // Runs before CSS/paint so the correct theme is applied instantly — no flash.
+  (function(){
+    try{
+      var saved = localStorage.getItem('codelens_theme');
+      var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    }catch(e){ document.documentElement.setAttribute('data-theme', 'dark'); }
+  })();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" id="hljsTheme" />
+
+<style>
+  /* ============================= TOKENS (dark — default) ============================= */
+  :root{
+    --bg-void:#03050a;
+    --bg-deep-1:#070c18;
+    --bg-deep-2:#0c1226;
+    --bg-deep-3:#121a38;
+
+    --surface:rgba(255,255,255,.045);
+    --surface-strong:rgba(255,255,255,.075);
+    --border:rgba(255,255,255,.09);
+    --border-strong:rgba(255,255,255,.18);
+
+    --cyan:#2fe0ff;
+    --cyan-soft:#8aeeff;
+    --cyan-dim:#0b93a9;
+    --violet:#9b6bff;
+    --violet-soft:#c7abff;
+    --violet-dim:#5a3aa8;
+
+    --text-hi:#f4f7fc;
+    --text-mid:#a7b0c7;
+    --text-dim:#5c6584;
+
+    --danger:#ff5f7e;
+    --danger-dim:#5a1f31;
+    --amber:#ffc266;
+    --amber-dim:#8a5a12;
+
+    --r-lg:22px;
+    --r-md:15px;
+    --r-sm:9px;
+    --ease:cubic-bezier(.16,.84,.44,1);
+    --font-display:'Poppins', 'Inter', sans-serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'JetBrains Mono', monospace;
+
+    /* Elevation — layered, neutral depth instead of colored glow blooms */
+    --shadow-sm:0 1px 2px rgba(0,0,0,.5), 0 1px 1px rgba(0,0,0,.3);
+    --shadow-md:0 8px 24px -10px rgba(0,0,0,.6), 0 2px 6px -2px rgba(0,0,0,.4);
+    --shadow-lg:0 24px 60px -24px rgba(0,0,0,.75), 0 6px 18px -6px rgba(0,0,0,.5);
+    --shadow-inset:inset 0 1px 0 rgba(255,255,255,.05);
+    --atmosphere-opacity:.5;
+    --scanline-opacity:1;
+    --hero-glow-1:rgba(155,107,255,.16);
+    --hero-glow-2:rgba(47,224,255,.10);
+    --header-bg:rgba(6,9,20,.55);
+    --input-bg:rgba(0,0,0,.28);
+    --code-bg:#0a0e1c;
+    --atmosphere-edge-opacity-1:.6;
+    --atmosphere-edge-opacity-2:.5;
+    --dropzone-border:rgba(255,255,255,.28);
+    --glass-bg-1:rgba(255,255,255,.075);
+    --glass-bg-2:rgba(255,255,255,.03);
+    --rail-bg:rgba(255,255,255,.03);
+  }
+
+  /* ============================= TOKENS (light) ============================= */
+  :root[data-theme="light"]{
+    --bg-void:#f3f5f9;
+    --bg-deep-1:#eef1f6;
+    --bg-deep-2:#e9edf4;
+    --bg-deep-3:#e4e9f2;
+
+    --surface:rgba(20,24,38,.035);
+    --surface-strong:rgba(255,255,255,.82);
+    --border:rgba(20,24,38,.09);
+    --border-strong:rgba(20,24,38,.22);
+
+    --cyan:#0891a8;
+    --cyan-soft:#0aa9c4;
+    --cyan-dim:#066e80;
+    --violet:#7c4fe0;
+    --violet-soft:#6739c4;
+    --violet-dim:#5327a0;
+
+    --text-hi:#141826;
+    --text-mid:#4c5570;
+    --text-dim:#828ba3;
+
+    --danger:#d7365a;
+    --danger-dim:#f8d7de;
+    --amber:#b5790a;
+    --amber-dim:#fbe9c9;
+
+    --shadow-sm:0 1px 2px rgba(20,24,38,.06), 0 1px 1px rgba(20,24,38,.04);
+    --shadow-md:0 8px 24px -10px rgba(20,24,38,.14), 0 2px 6px -2px rgba(20,24,38,.08);
+    --shadow-lg:0 24px 55px -22px rgba(20,24,38,.20), 0 6px 16px -6px rgba(20,24,38,.10);
+    --shadow-inset:inset 0 1px 0 rgba(255,255,255,.6);
+    --atmosphere-opacity:.34;
+    --scanline-opacity:0;
+    --hero-glow-1:rgba(124,79,224,.08);
+    --hero-glow-2:rgba(8,145,168,.07);
+    --header-bg:rgba(255,255,255,.72);
+    --input-bg:rgba(255,255,255,.9);
+    --code-bg:#eef1f6;
+    --atmosphere-edge-opacity-1:.85;
+    --atmosphere-edge-opacity-2:.75;
+    --dropzone-border:rgba(20,24,38,.38);
+    --glass-bg-1:rgba(255,255,255,.94);
+    --glass-bg-2:rgba(255,255,255,.86);
+    --rail-bg:rgba(255,255,255,.7);
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(60vw 60vw at 85% -10%, var(--hero-glow-1), transparent 60%),
+      radial-gradient(50vw 50vw at 8% 12%, var(--hero-glow-2), transparent 55%),
+      linear-gradient(180deg, var(--bg-void) 0%, var(--bg-deep-1) 35%, var(--bg-deep-2) 70%, var(--bg-deep-3) 100%);
+    background-attachment:fixed;
+    color:var(--text-hi);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+    transition:color .35s var(--ease);
+  }
+  body, body *{
+    transition-property:background-color, border-color, color, box-shadow;
+    transition-duration:.35s;
+    transition-timing-function:var(--ease);
+  }
+
+  ::selection{ background:var(--violet-dim); color:#fff; }
+  a{ color:inherit; }
+  :focus-visible{ outline:2px solid var(--cyan); outline-offset:3px; border-radius:6px; }
+
+  /* ============================= ATMOSPHERE (signature bg) ============================= */
+  .atmosphere{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; opacity:var(--atmosphere-opacity); transition:opacity .5s var(--ease); }
+  .atmosphere svg{ position:absolute; top:50%; left:50%; transform:translate(-50%,-52%); width:min(1400px, 160vw); height:auto; opacity:.5; }
+  #edgeGrad stop:nth-child(1){ stop-color:var(--cyan); stop-opacity:var(--atmosphere-edge-opacity-1); }
+  #edgeGrad stop:nth-child(2){ stop-color:var(--violet); stop-opacity:var(--atmosphere-edge-opacity-2); }
+  .atmosphere .node{ animation:pulse-node 5s ease-in-out infinite; transform-origin:center; }
+  .atmosphere .edge{ animation:draw-edge 2.6s var(--ease) forwards; }
+  .atmosphere .grain{
+    position:absolute; inset:0;
+    background-image:radial-gradient(rgba(255,255,255,.55) .6px, transparent .6px);
+    background-size:3px 3px; opacity:.03; mix-blend-mode:overlay;
+  }
+  .scanline{
+    position:absolute; left:0; right:0; height:140px;
+    background:linear-gradient(180deg, transparent, rgba(47,224,255,.06), transparent);
+    animation:scan 9s linear infinite;
+    opacity:var(--scanline-opacity);
+  }
+  @keyframes pulse-node{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+  @keyframes draw-edge{ from{ stroke-dashoffset:1; } to{ stroke-dashoffset:0; } }
+  @keyframes scan{ 0%{ top:-160px; } 100%{ top:110%; } }
+
+  /* ============================= LAYOUT SHELL ============================= */
+  main, header, footer{ position:relative; z-index:1; }
+  .wrap{ max-width:1180px; margin:0 auto; padding:0 28px; }
+
+  /* ============================= HEADER ============================= */
+  header.topbar{
+    position:sticky; top:0; z-index:40;
+    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+    background:var(--header-bg);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar-inner{ display:flex; align-items:center; justify-content:space-between; padding:16px 28px; max-width:1180px; margin:0 auto; }
+  .brand{ display:flex; align-items:center; gap:11px; }
+  .brand-mark{ width:34px; height:34px; flex:none; }
+  .brand-name{ font-family:var(--font-display); font-weight:600; font-size:17px; letter-spacing:.01em; }
+  .brand-name b{ font-weight:700; background:linear-gradient(90deg, var(--cyan-soft), var(--violet-soft)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  .header-actions{ display:flex; align-items:center; gap:10px; }
+  .header-right{ display:flex; align-items:center; gap:16px; }
+  .user-chip{ font-family:var(--font-mono); font-size:13px; color:var(--text-mid); border:1px solid var(--border); background:var(--surface); padding:8px 14px; border-radius:99px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* Theme toggle — animated sun/moon switch */
+  .theme-toggle{
+    position:relative; width:52px; height:29px; border-radius:99px; cursor:pointer; flex:none;
+    background:var(--surface-strong); border:1px solid var(--border-strong);
+    box-shadow:var(--shadow-inset);
+  }
+  .theme-toggle:hover{ border-color:var(--cyan-dim); }
+  .theme-toggle .knob{
+    position:absolute; top:2px; left:2px; width:23px; height:23px; border-radius:50%;
+    background:linear-gradient(145deg, var(--cyan-soft), var(--violet-soft));
+    display:flex; align-items:center; justify-content:center; color:var(--bg-void);
+    transition:transform .38s var(--ease); box-shadow:0 2px 6px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] .theme-toggle .knob{ transform:translateX(23px); }
+  .theme-toggle .knob svg{ width:14px; height:14px; }
+  .theme-toggle .knob .icon-sun{ display:none; }
+  .theme-toggle .knob .icon-moon{ display:flex; }
+  :root[data-theme="light"] .theme-toggle .knob .icon-sun{ display:flex; }
+  :root[data-theme="light"] .theme-toggle .knob .icon-moon{ display:none; }
+
+  /* ============================= BUTTONS ============================= */
+  .btn-primary{
+    display:inline-flex; align-items:center; justify-content:center; gap:10px;
+    font-family:var(--font-body); font-weight:600; font-size:15px; color:#fff;
+    background:linear-gradient(100deg, var(--violet), var(--cyan-dim));
+    padding:15px 34px; border-radius:99px; border:1px solid rgba(255,255,255,.14);
+    cursor:pointer;
+    transition:transform .2s var(--ease), box-shadow .2s var(--ease), opacity .2s;
+    box-shadow:var(--shadow-md);
+  }
+  :root[data-theme="light"] .btn-primary{ color:#fff; }
+  .btn-primary:hover:not(:disabled){ transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+  .btn-primary:disabled{ opacity:.35; cursor:not-allowed; box-shadow:none; }
+  .btn-primary.sm{ padding:10px 20px; font-size:13.5px; box-shadow:none; }
+  .btn-primary.full{ width:100%; margin-top:4px; }
+
+  .btn-ghost{
+    font-family:var(--font-body); font-weight:600; font-size:14px; color:var(--text-hi);
+    background:var(--surface); border:1px solid var(--border-strong); padding:11px 22px; border-radius:99px; cursor:pointer;
+    transition:all .2s var(--ease);
+  }
+  .btn-ghost:hover:not(:disabled){ background:var(--surface-strong); border-color:var(--cyan); }
+  .btn-ghost:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn-ghost.sm{ padding:9px 18px; font-size:13px; }
+
+  .btn-secondary{
+    font-family:var(--font-body); font-weight:600; font-size:13.5px; color:var(--violet-soft);
+    background:rgba(124,79,224,.08); border:1px solid rgba(124,79,224,.35); padding:12px 20px; border-radius:99px; cursor:pointer;
+    white-space:nowrap; transition:all .2s var(--ease);
+  }
+  .btn-secondary:hover{ background:rgba(124,79,224,.16); border-color:var(--violet-soft); }
+
+  /* ============================= GLASS CARD BASE ============================= */
+  .glass{
+    background:linear-gradient(180deg, var(--glass-bg-1), var(--glass-bg-2));
+    border:1px solid var(--border);
+    border-radius:var(--r-lg);
+    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    box-shadow:var(--shadow-lg), var(--shadow-inset);
+  }
+
+  /* ============================= BOOT LOADER ============================= */
+  #bootLoader{ display:none; min-height:70vh; align-items:center; justify-content:center; flex-direction:column; gap:18px; }
+  body.booting .hero, body.booting .workspace, body.booting .results-section{ display:none !important; }
+  body.booting #bootLoader{ display:flex; }
+  .boot-ring{ width:56px; height:56px; }
+  .boot-ring .blade{ transform-origin:28px 28px; animation:blade-spin 2.6s var(--ease) infinite; }
+  .boot-label{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-dim); }
+
+  /* ============================= HERO (unauthenticated) ============================= */
+  .hero{ padding:96px 0 60px; }
+  .config-warning{
+    display:flex; gap:10px; align-items:flex-start; margin-bottom:28px; padding:14px 16px;
+    border:1px solid rgba(255,196,102,.3); background:rgba(255,196,102,.07); border-radius:var(--r-md);
+    font-size:13px; color:#ffd280; max-width:60ch;
+  }
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--font-mono); font-size:12px; letter-spacing:.11em; text-transform:uppercase;
+    color:var(--cyan-soft);
+    padding:2px 0 2px 12px; margin-bottom:26px; margin-left:-2px;
+    border-left:2px solid var(--cyan-dim);
+    transform:rotate(-0.6deg);
+  }
+  .eyebrow::before{ display:none; }
+
+  h1.headline{
+    font-family:var(--font-display); font-weight:600; letter-spacing:-.015em;
+    font-size:clamp(38px, 5.6vw, 66px); line-height:1.04; margin:0 0 22px; max-width:15ch;
+  }
+  h1.headline .line2{
+    display:block;
+    background:linear-gradient(100deg, var(--violet-soft) 0%, var(--cyan-soft) 60%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .subhead{ font-size:17.5px; line-height:1.65; color:var(--text-mid); max-width:52ch; margin:0 0 40px; }
+  .hero-cta{ display:flex; gap:14px; flex-wrap:wrap; }
+
+  /* ============================= WORKSPACE (authenticated) ============================= */
+  .workspace{ padding:64px 0 20px; }
+  .workspace-head{ margin-bottom:28px; }
+  .headline-sm{ font-family:var(--font-display); font-weight:600; font-size:clamp(24px,3.6vw,32px); margin:14px 0 0; }
+  .headline-sm .name-accent{ background:linear-gradient(100deg, var(--cyan-soft), var(--violet-soft)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .workspace-sub{ font-size:14.5px; color:var(--text-mid); margin:8px 0 0; }
+
+  .assignment-card{ padding:22px 24px; margin-bottom:20px; }
+  .assignment-row{ display:flex; align-items:flex-end; gap:14px; }
+  .field label{
+    display:block; font-family:var(--font-mono); font-size:11.5px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--text-dim); margin-bottom:9px;
+  }
+  .field.grow{ flex:1; min-width:0; }
+  .field input, .field select, .field textarea{
+    width:100%; background:var(--input-bg); border:1px solid var(--border-strong);
+    color:var(--text-hi); font-family:var(--font-mono); font-size:14px;
+    padding:12px 14px; border-radius:var(--r-sm); transition:border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .field textarea{ font-family:var(--font-body); font-size:14px; line-height:1.55; resize:vertical; }
+  .field input::placeholder, .field textarea::placeholder{ color:var(--text-dim); }
+  .field input:focus, .field select:focus, .field textarea:focus{ border-color:var(--cyan); box-shadow:0 0 0 3px rgba(47,224,255,.14); outline:none; }
+  .field select{
+    appearance:none; -webkit-appearance:none;
+    background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23a7b0c7" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>');
+    background-repeat:no-repeat; background-position:right 14px center; background-size:16px; padding-right:40px;
+  }
+  .field-hint{ font-size:11.5px; color:var(--text-dim); margin-top:7px; min-height:14px; }
+  .assignment-empty-note{ font-size:13px; color:var(--text-dim); margin-top:14px; }
+
+  .password-field{ position:relative; }
+  .password-field input{ padding-right:44px; }
+  .password-toggle{
+    position:absolute; right:6px; top:50%; transform:translateY(-50%);
+    width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+    background:none; border:none; border-radius:8px; cursor:pointer; color:var(--text-dim);
+    transition:color .2s var(--ease), background .2s var(--ease);
+  }
+  .password-toggle:hover{ color:var(--cyan-soft); background:rgba(255,255,255,.05); }
+  .password-toggle svg{ width:18px; height:18px; }
+
+  /* ============================= DROPZONE ============================= */
+  .dropzone{
+    position:relative; padding:52px 30px; text-align:center; cursor:pointer;
+    border:2px dashed var(--dropzone-border); border-radius:var(--r-lg);
+    background:linear-gradient(180deg, var(--surface-strong), var(--surface));
+    transition:border-color .25s var(--ease), box-shadow .35s var(--ease), transform .25s var(--ease), background .25s var(--ease);
+    overflow:hidden;
+  }
+  .dropzone::before{
+    content:''; position:absolute; inset:0; border-radius:inherit; opacity:0;
+    background:radial-gradient(60% 90% at 50% 0%, rgba(47,224,255,.16), transparent 70%);
+    transition:opacity .35s var(--ease);
+  }
+  .dropzone:hover{ border-color:rgba(47,224,255,.4); transform:translateY(-1px); }
+  .dropzone.dragover{
+    border-color:var(--cyan); background:rgba(47,224,255,.05);
+    box-shadow:0 0 0 1px var(--cyan-dim), var(--shadow-md);
+    transform:scale(1.005);
+  }
+  .dropzone.dragover::before{ opacity:1; }
+  .dropzone.has-file{ border-style:solid; border-color:rgba(155,107,255,.45); }
+
+  .dz-icon{ width:56px; height:56px; margin:0 auto 18px; position:relative; z-index:1; }
+  .dz-icon svg{ width:100%; height:100%; }
+  .dz-icon .lens-ring{ transition:transform .4s var(--ease); }
+  .dropzone.dragover .lens-ring{ transform:scale(1.12) rotate(20deg); }
+
+  .dz-title{ font-family:var(--font-display); font-weight:600; font-size:19px; margin:0 0 6px; position:relative; z-index:1; }
+  .dz-sub{ font-size:13.5px; color:var(--text-mid); margin:0 0 22px; position:relative; z-index:1; }
+  .dz-browse{
+    display:inline-flex; align-items:center; gap:8px; font-family:var(--font-body); font-weight:600; font-size:13.5px;
+    color:var(--bg-void); background:linear-gradient(100deg, var(--cyan-soft), var(--cyan));
+    padding:11px 22px; border-radius:99px; border:none; cursor:pointer; position:relative; z-index:1;
+    transition:transform .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .dz-browse:hover{ transform:translateY(-2px); box-shadow:var(--shadow-md); }
+  .dz-file-info{
+    display:none; align-items:center; justify-content:center; gap:12px; margin-top:20px; position:relative; z-index:1;
+    font-family:var(--font-mono); font-size:13px; color:var(--violet-soft);
+  }
+  .dropzone.has-file .dz-file-info{ display:flex; }
+  .dz-file-info .chip{ background:rgba(155,107,255,.1); border:1px solid rgba(155,107,255,.32); padding:6px 12px; border-radius:99px; }
+  .dz-remove{ background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:16px; line-height:1; }
+  .dz-remove:hover{ color:var(--danger); }
+
+  .analyze-row{ display:flex; justify-content:center; margin-top:26px; }
+
+  .error-banner{
+    display:none; align-items:flex-start; gap:12px; margin-top:20px;
+    border:1px solid rgba(255,95,126,.35); background:rgba(255,95,126,.08);
+    padding:14px 16px; border-radius:var(--r-md); font-size:13.5px; color:#ffc2cf;
+  }
+  .error-banner.show{ display:flex; }
+  .error-banner svg{ flex:none; width:18px; height:18px; margin-top:1px; }
+
+  /* ============================= RESULTS ============================= */
+  .results-section{ padding:20px 0 110px; }
+  .results-head{ display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:14px; margin-bottom:22px; }
+  .results-title{ font-family:var(--font-display); font-weight:600; font-size:24px; }
+  .stat-chips{ display:flex; gap:10px; flex-wrap:wrap; }
+  .stat-chip{ font-family:var(--font-mono); font-size:12.5px; padding:8px 14px; border-radius:99px; border:1px solid var(--border); background:var(--surface); color:var(--text-mid); }
+  .stat-chip b{ color:var(--text-hi); font-weight:600; }
+  .stat-chip.ok b{ color:var(--cyan-soft); }
+  .stat-chip.bad b{ color:var(--danger); }
+
+  .grid-card{ padding:6px; overflow:hidden; }
+  .results-table{ width:100%; border-collapse:collapse; }
+  .results-table thead th{
+    text-align:left; font-family:var(--font-mono); font-size:11px; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--text-dim); font-weight:500; padding:16px 18px; border-bottom:1px solid var(--border);
+  }
+  .results-table tbody tr{
+    transition:background .18s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
+    transform-origin:center left;
+  }
+  .results-table tbody tr:hover{
+    background:var(--surface);
+    transform:scale(1.008);
+    box-shadow:var(--shadow-sm);
+    position:relative; z-index:1;
+  }
+  .results-table tbody tr:not(:last-child) td{ border-bottom:1px solid var(--border); }
+  .results-table td{ padding:14px 18px; font-size:14px; vertical-align:middle; font-variant-numeric:tabular-nums; }
+  .student-cell{ display:flex; flex-direction:column; gap:3px; }
+  .student-id{ font-weight:600; }
+  .student-file{ font-family:var(--font-mono); font-size:12px; color:var(--text-dim); background:var(--surface); display:inline-block; padding:1px 6px; border-radius:5px; margin-top:1px; width:fit-content; }
+
+  .gauge-cell{ display:flex; align-items:center; gap:12px; }
+  .gauge svg{ display:block; }
+  .gauge-num{
+    font-family:var(--font-mono); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums;
+    padding:3px 9px; border-radius:7px; border:1px solid transparent;
+  }
+  .gauge-num.tier-high{ color:var(--cyan-soft); background:rgba(47,224,255,.08); border-color:rgba(47,224,255,.25); }
+  .gauge-num.tier-mid{ color:var(--amber); background:rgba(255,194,102,.1); border-color:rgba(255,194,102,.28); }
+  .gauge-num.tier-low{ color:var(--danger); background:rgba(255,95,126,.08); border-color:rgba(255,95,126,.28); }
+
+  .status-pill{ display:inline-flex; align-items:center; gap:7px; font-family:var(--font-mono); font-size:12px; padding:6px 12px; border-radius:99px; border:1px solid transparent; }
+  .status-pill.graded{ color:var(--cyan-soft); background:rgba(47,224,255,.08); border-color:rgba(47,224,255,.28); }
+  .status-pill.failed{ color:var(--danger); background:rgba(255,95,126,.08); border-color:rgba(255,95,126,.3); }
+  .status-pill.pending{ color:var(--amber); background:rgba(255,194,102,.08); border-color:rgba(255,194,102,.3); }
+  .status-pill .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; animation:pill-pulse 2.4s ease-in-out infinite; }
+  @keyframes pill-pulse{ 0%,100%{ opacity:1; box-shadow:0 0 0 0 currentColor; } 50%{ opacity:.55; box-shadow:0 0 0 3px transparent; } }
+
+  .btn-feedback{
+    font-family:var(--font-body); font-weight:600; font-size:12.5px; color:var(--violet-soft);
+    background:rgba(155,107,255,.08); border:1px solid rgba(155,107,255,.35);
+    padding:8px 15px; border-radius:99px; cursor:pointer; transition:all .2s var(--ease);
+  }
+  .btn-feedback:hover{ background:rgba(155,107,255,.18); border-color:var(--violet-soft); transform:translateY(-1px); }
+  .btn-feedback:disabled{ opacity:.3; cursor:default; transform:none; }
+
+  .empty-row td{ text-align:center; padding:60px 18px; color:var(--text-dim); font-size:13.5px; }
+
+  /* ============================= LOADING OVERLAY (grading) ============================= */
+  .loading-overlay{ position:fixed; inset:0; z-index:80; display:none; align-items:center; justify-content:center; background:rgba(3,5,10,.72); backdrop-filter:blur(6px); }
+  .loading-overlay.show{ display:flex; }
+  .loading-card{ text-align:center; }
+  .aperture-spinner{ width:120px; height:120px; margin:0 auto 30px; }
+  .aperture-spinner .blade{ transform-origin:60px 60px; animation:blade-spin 2.6s var(--ease) infinite; }
+  .aperture-spinner .blade:nth-child(2){ animation-delay:.05s; }
+  .aperture-spinner .blade:nth-child(3){ animation-delay:.1s; }
+  .aperture-spinner .blade:nth-child(4){ animation-delay:.15s; }
+  .aperture-spinner .blade:nth-child(5){ animation-delay:.2s; }
+  .aperture-spinner .blade:nth-child(6){ animation-delay:.25s; }
+  @keyframes blade-spin{ 0%,100%{ transform:rotate(0deg) scale(1); } 50%{ transform:rotate(38deg) scale(.78); } }
+  .loading-status{ font-family:var(--font-mono); font-size:13.5px; color:var(--cyan-soft); min-height:20px; }
+  .loading-sub{ font-size:12.5px; color:var(--text-dim); margin-top:8px; }
+
+  /* ============================= MODALS (shared) ============================= */
+  .modal-overlay{
+    position:fixed; inset:0; z-index:90; display:none; align-items:flex-start; justify-content:center;
+    padding:60px 20px; overflow-y:auto;
+    background:rgba(3,5,12,.68); backdrop-filter:blur(8px);
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-panel{ width:100%; max-width:720px; padding:0; overflow:hidden; animation:modal-in .32s var(--ease); }
+  .modal-panel.narrow{ max-width:440px; }
+  @keyframes modal-in{ from{ opacity:0; transform:translateY(14px) scale(.98); } to{ opacity:1; transform:none; } }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding:24px 26px; border-bottom:1px solid var(--border); background:linear-gradient(120deg, rgba(155,107,255,.09), rgba(47,224,255,.05)); }
+  .modal-title{ font-family:var(--font-display); font-weight:600; font-size:18px; }
+  .modal-student{ display:flex; align-items:center; gap:16px; }
+  .modal-student-name{ font-family:var(--font-display); font-weight:600; font-size:19px; }
+  .modal-student-file{ font-family:var(--font-mono); font-size:12px; color:var(--text-dim); margin-top:2px; }
+  .modal-close{
+    background:var(--surface); border:1px solid var(--border); color:var(--text-mid);
+    width:34px; height:34px; border-radius:50%; cursor:pointer; font-size:16px; line-height:1;
+    display:flex; align-items:center; justify-content:center; transition:all .2s var(--ease); flex:none;
+  }
+  .modal-close:hover{ color:var(--text-hi); border-color:var(--border-strong); }
+
+  .modal-panel.workspace-modal{ max-width:860px; }
+  .workspace-modal-body{ display:flex; align-items:stretch; min-height:420px; }
+  .modal-tabs{
+    display:flex; flex-direction:column; gap:2px; padding:16px 10px; width:190px; flex:none;
+    border-right:1px solid var(--border); background:var(--rail-bg);
+  }
+  .modal-tab{
+    display:flex; align-items:center; gap:10px; text-align:left;
+    font-family:var(--font-body); font-weight:600; font-size:13px; color:var(--text-dim);
+    background:none; border:none; border-radius:var(--r-sm); padding:11px 12px; cursor:pointer;
+    transition:all .2s var(--ease);
+  }
+  .modal-tab svg{ width:16px; height:16px; flex:none; opacity:.75; }
+  .modal-tab:hover{ background:var(--surface-strong); color:var(--text-hi); }
+  .modal-tab.active{ color:var(--text-hi); background:var(--surface-strong); box-shadow:inset 2px 0 0 var(--cyan); }
+  @media (max-width:640px){
+    .workspace-modal-body{ flex-direction:column; }
+    .modal-tabs{ flex-direction:row; width:auto; border-right:none; border-bottom:1px solid var(--border); overflow-x:auto; }
+  }
+
+  .modal-body{ padding:26px; max-height:56vh; overflow-y:auto; flex:1; min-width:0; }
+  .modal-body::-webkit-scrollbar{ width:8px; }
+  .modal-body::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:8px; }
+
+  /* Auth modal specifics */
+  .auth-tabs{ display:flex; gap:22px; }
+  .auth-tab{ font-family:var(--font-body); font-weight:600; font-size:15px; color:var(--text-dim); background:none; border:none; padding:4px 0; cursor:pointer; position:relative; }
+  .auth-tab.active{ color:var(--text-hi); }
+  .auth-tab.active::after{ content:''; position:absolute; left:0; right:0; bottom:-8px; height:2px; background:linear-gradient(90deg,var(--cyan),var(--violet)); border-radius:2px; }
+  .auth-form{ display:flex; flex-direction:column; gap:16px; }
+  .auth-form[hidden]{ display:none; }
+  .form-error{ font-size:13px; color:var(--danger); }
+  .form-error:empty{ display:none; }
+  .form-notice{ font-size:13px; color:var(--cyan-soft); background:rgba(47,224,255,.08); border:1px solid rgba(47,224,255,.25); padding:10px 12px; border-radius:var(--r-sm); }
+  .form-notice:empty{ display:none; }
+  .resend-link{
+    background:none; border:none; padding:0; margin-top:-6px;
+    font-family:var(--font-body); font-size:12.5px; color:var(--cyan-soft);
+    text-decoration:underline; text-underline-offset:3px; cursor:pointer; align-self:flex-start;
+  }
+  .resend-link:hover{ color:var(--cyan); }
+  .resend-link:disabled{ opacity:.5; cursor:not-allowed; text-decoration:none; }
+  .resend-link[hidden]{ display:none; }
+
+  /* Feedback modal markdown */
+  .feedback-md{ font-size:14.5px; line-height:1.75; color:var(--text-mid); }
+  .feedback-md h1, .feedback-md h2, .feedback-md h3{ font-family:var(--font-display); color:var(--text-hi); margin:22px 0 10px; }
+  .feedback-md h1:first-child, .feedback-md h2:first-child, .feedback-md h3:first-child{ margin-top:0; }
+  .feedback-md p{ margin:0 0 14px; }
+  .feedback-md ul, .feedback-md ol{ margin:0 0 14px; padding-left:22px; }
+  .feedback-md li{ margin-bottom:6px; }
+  .feedback-md code{ font-family:var(--font-mono); font-size:.9em; background:rgba(155,107,255,.12); color:var(--violet-soft); padding:2px 6px; border-radius:5px; }
+  .feedback-md pre{ background:var(--code-bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:16px; overflow-x:auto; margin:0 0 16px; }
+  .feedback-md pre code{ background:none; padding:0; color:inherit; }
+  .feedback-md strong{ color:var(--text-hi); }
+
+  .req-list{ display:flex; flex-direction:column; gap:10px; }
+  .req-item{ display:flex; align-items:flex-start; gap:12px; padding:14px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .req-badge{ flex:none; font-family:var(--font-mono); font-size:11px; padding:4px 9px; border-radius:6px; margin-top:1px; }
+  .req-badge.met{ background:rgba(47,224,255,.12); color:var(--cyan-soft); }
+  .req-badge.partial{ background:rgba(255,196,102,.12); color:#ffd280; }
+  .req-badge.unmet{ background:rgba(255,95,126,.12); color:#ffb3c1; }
+  .req-text b{ display:block; font-size:13.5px; margin-bottom:4px; color:var(--text-hi); }
+  .req-text span{ font-size:13px; color:var(--text-mid); line-height:1.55; }
+
+  .metrics-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:12px; }
+  .metric-tile{ padding:14px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .metric-tile .v{ font-family:var(--font-mono); font-size:22px; font-weight:600; background:linear-gradient(100deg, var(--cyan-soft), var(--violet-soft)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .metric-tile .l{ font-size:11.5px; color:var(--text-dim); margin-top:4px; text-transform:uppercase; letter-spacing:.05em; }
+
+  .modal-panel-loading{ padding:70px 26px; text-align:center; color:var(--text-dim); font-family:var(--font-mono); font-size:13px; }
+
+  footer{ text-align:center; padding:30px 0 50px; font-size:12.5px; color:var(--text-dim); font-family:var(--font-mono); }
+
+  /* ============================= RESPONSIVE ============================= */
+  @media (max-width:760px){
+    .assignment-row{ flex-direction:column; align-items:stretch; }
+    .results-table thead{ display:none; }
+    .results-table, .results-table tbody, .results-table tr, .results-table td{ display:block; width:100%; }
+    .results-table tr{ padding:14px 6px; }
+    .results-table td{ border:none !important; padding:6px 12px; }
+    .results-table td::before{ content:attr(data-label); display:block; font-family:var(--font-mono); font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  }
+</style>
+</head>
+<body class="booting">
+
+<div class="atmosphere" aria-hidden="true">
+  <div class="scanline"></div>
+  <svg viewBox="0 0 900 620" fill="none">
+    <g stroke="url(#edgeGrad)" stroke-width="1.4">
+      <line class="edge" x1="450" y1="80" x2="230" y2="200" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="450" y1="80" x2="450" y2="210" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="450" y1="80" x2="660" y2="190" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="230" y1="200" x2="130" y2="330" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="230" y1="200" x2="260" y2="340" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="450" y1="210" x2="400" y2="360" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="450" y1="210" x2="520" y2="370" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="660" y1="190" x2="620" y2="330" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="660" y1="190" x2="760" y2="320" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="400" y1="360" x2="360" y2="500" pathLength="1" stroke-dasharray="1"/>
+      <line class="edge" x1="620" y1="330" x2="640" y2="480" pathLength="1" stroke-dasharray="1"/>
+    </g>
+    <g fill="var(--cyan)">
+      <circle class="node" cx="450" cy="80" r="6"/>
+      <circle class="node" cx="230" cy="200" r="5"/>
+      <circle class="node" cx="660" cy="190" r="5" fill="var(--violet)"/>
+      <circle class="node" cx="130" cy="330" r="4" fill="var(--violet)"/>
+      <circle class="node" cx="260" cy="340" r="4"/>
+      <circle class="node" cx="400" cy="360" r="5"/>
+      <circle class="node" cx="520" cy="370" r="4" fill="var(--violet)"/>
+      <circle class="node" cx="620" cy="330" r="5"/>
+      <circle class="node" cx="760" cy="320" r="4" fill="var(--violet)"/>
+      <circle class="node" cx="360" cy="500" r="4"/>
+      <circle class="node" cx="640" cy="480" r="4" fill="var(--violet)"/>
+    </g>
+    <defs>
+      <linearGradient id="edgeGrad" x1="0" y1="0" x2="900" y2="620">
+        <stop offset="0%" stop-color="#2fe0ff" stop-opacity=".55"/>
+        <stop offset="100%" stop-color="#9b6bff" stop-opacity=".45"/>
+      </linearGradient>
+    </defs>
+  </svg>
+  <div class="grain"></div>
+</div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="url(#logoGrad)" stroke-width="1.6"/>
+        <circle cx="20" cy="20" r="11" stroke="url(#logoGrad)" stroke-width="1.6" opacity=".7"/>
+        <circle cx="20" cy="20" r="4.2" fill="url(#logoGrad)"/>
+        <defs>
+          <linearGradient id="logoGrad" x1="2" y1="2" x2="38" y2="38">
+            <stop offset="0%" stop-color="#2fe0ff"/>
+            <stop offset="100%" stop-color="#9b6bff"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <span class="brand-name">Code<b>Lens</b> AI</span>
+    </div>
+    <div class="header-right">
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+        <span class="knob">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+        </span>
+      </button>
+      <div class="header-actions" id="headerActions"></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div id="bootLoader">
+    <svg class="boot-ring" viewBox="0 0 56 56" fill="none">
+      <g>
+        <path class="blade" d="M28 28 L28 6 A22 22 0 0 1 46 16 Z" fill="url(#bootGrad)" opacity=".85"/>
+        <path class="blade" d="M28 28 L46 16 A22 22 0 0 1 46 40 Z" fill="url(#bootGrad)" opacity=".7"/>
+        <path class="blade" d="M28 28 L46 40 A22 22 0 0 1 28 50 Z" fill="url(#bootGrad)" opacity=".85"/>
+        <path class="blade" d="M28 28 L28 50 A22 22 0 0 1 10 40 Z" fill="url(#bootGrad)" opacity=".7"/>
+        <path class="blade" d="M28 28 L10 40 A22 22 0 0 1 10 16 Z" fill="url(#bootGrad)" opacity=".85"/>
+        <path class="blade" d="M28 28 L10 16 A22 22 0 0 1 28 6 Z" fill="url(#bootGrad)" opacity=".7"/>
+      </g>
+      <defs>
+        <linearGradient id="bootGrad" x1="6" y1="6" x2="50" y2="50">
+          <stop offset="0%" stop-color="#2fe0ff"/>
+          <stop offset="100%" stop-color="#9b6bff"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="boot-label">Checking your session…</div>
+  </div>
+
+  <!-- ===================== LANDING (unauthenticated) ===================== -->
+  <section class="hero" id="landingHero" hidden>
+    <div class="config-warning" id="configWarning" hidden>
+      <span>⚠</span>
+      <span>Auth isn't configured on the server yet — set <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> and restart the API.</span>
+    </div>
+    <span class="eyebrow">AST-verified · AI-reasoned</span>
+    <h1 class="headline">See the structure.<span class="line2">Grade the substance.</span></h1>
+    <p class="subhead">Upload a ZIP of student submissions. CodeLens statically extracts the real structural blueprint of every file, then has Gemini reason over that evidence to produce rigorous, encouraging feedback — never a guess.</p>
+    <div class="hero-cta">
+      <button type="button" class="btn-primary" id="heroGetStarted">Get started — it's free</button>
+      <button type="button" class="btn-ghost" id="heroLogIn">Log in</button>
+    </div>
+  </section>
+
+  <!-- ===================== WORKSPACE (authenticated) ===================== -->
+  <section class="workspace" id="workspace" hidden>
+    <div class="workspace-head">
+      <span class="eyebrow">AST-verified · AI-reasoned</span>
+      <h1 class="headline-sm">Welcome back, <span class="name-accent" id="workspaceName">instructor</span></h1>
+      <p class="workspace-sub">Pick an assignment, drop a ZIP of student submissions, and CodeLens takes it from there.</p>
+    </div>
+
+    <div class="assignment-card glass">
+      <div class="assignment-row">
+        <div class="field grow">
+          <label for="assignmentSelect">Assignment</label>
+          <select id="assignmentSelect"></select>
+        </div>
+        <button type="button" class="btn-secondary" id="newAssignmentBtn">+ New assignment</button>
+      </div>
+      <p class="assignment-empty-note" id="assignmentEmptyNote" hidden>You don't have any assignments yet — create one to start grading.</p>
+    </div>
+
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload ZIP of student submissions">
+      <div class="dz-icon">
+        <svg viewBox="0 0 56 56" fill="none">
+          <circle class="lens-ring" cx="28" cy="28" r="24" stroke="url(#dzGrad)" stroke-width="1.8"/>
+          <circle class="lens-ring" cx="28" cy="28" r="15" stroke="url(#dzGrad)" stroke-width="1.4" opacity=".65"/>
+          <path d="M28 20v16M20 28h16" stroke="url(#dzGrad)" stroke-width="2" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="dzGrad" x1="4" y1="4" x2="52" y2="52">
+              <stop offset="0%" stop-color="#2fe0ff"/>
+              <stop offset="100%" stop-color="#9b6bff"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <p class="dz-title">Drop your submissions .zip here</p>
+      <p class="dz-sub">or select a file from your computer — student folders of .py files are parsed automatically</p>
+      <button type="button" class="dz-browse" id="browseBtn">Browse files</button>
+      <input type="file" id="fileInput" accept=".zip" hidden />
+      <div class="dz-file-info">
+        <span class="chip" id="fileChip"></span>
+        <button type="button" class="dz-remove" id="removeFile" aria-label="Remove selected file">✕</button>
+      </div>
+    </div>
+
+    <div class="analyze-row">
+      <button type="button" class="btn-primary" id="analyzeBtn" disabled>
+        <span>Analyze submissions</span>
+      </button>
+    </div>
+
+    <div class="error-banner" id="errorBanner">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3h.01M10.3 3.86 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.86a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="errorMessage"></span>
+    </div>
+  </section>
+
+  <section class="results-section" id="resultsSection" hidden>
+    <div class="results-head">
+      <h2 class="results-title">Grading results</h2>
+      <div class="stat-chips">
+        <span class="stat-chip">Files <b id="statTotal">0</b></span>
+        <span class="stat-chip ok">Graded <b id="statGraded">0</b></span>
+        <span class="stat-chip bad">Failed <b id="statFailed">0</b></span>
+      </div>
+    </div>
+    <div class="grid-card glass">
+      <table class="results-table">
+        <thead>
+          <tr><th>Student</th><th>Score</th><th>Status</th><th>Feedback</th></tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer>CodeLens AI — structural clarity, AI insight.</footer>
+
+<!-- ===================== AUTH MODAL ===================== -->
+<div class="modal-overlay" id="authModalOverlay">
+  <div class="modal-panel narrow glass">
+    <div class="modal-head">
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab" data-auth-tab="login">Log in</button>
+        <button type="button" class="auth-tab" data-auth-tab="signup">Sign up</button>
+      </div>
+      <button type="button" class="modal-close" id="authModalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form class="auth-form" id="loginForm">
+        <div class="field">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <div class="password-field">
+            <input type="password" id="loginPassword" autocomplete="current-password" required />
+            <button type="button" class="password-toggle" data-target="loginPassword" aria-label="Show password">
+              <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 4.22-5.44M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a20.5 20.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-error" id="loginError"></div>
+        <button type="button" class="resend-link" id="resendConfirmBtn" hidden>Resend confirmation email</button>
+        <div class="form-notice" id="loginNotice"></div>
+        <button type="submit" class="btn-primary full" id="loginSubmit">Log in</button>
+      </form>
+
+      <form class="auth-form" id="signupForm" hidden>
+        <div class="field">
+          <label for="signupName">Name</label>
+          <input type="text" id="signupName" autocomplete="name" required />
+        </div>
+        <div class="field">
+          <label for="signupEmail">Email</label>
+          <input type="email" id="signupEmail" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="signupPassword">Password</label>
+          <div class="password-field">
+            <input type="password" id="signupPassword" autocomplete="new-password" minlength="6" required />
+            <button type="button" class="password-toggle" data-target="signupPassword" aria-label="Show password">
+              <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 4.22-5.44M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a20.5 20.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-error" id="signupError"></div>
+        <div class="form-notice" id="signupNotice"></div>
+        <button type="submit" class="btn-primary full" id="signupSubmit">Create account</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CREATE ASSIGNMENT MODAL ===================== -->
+<div class="modal-overlay" id="assignmentModalOverlay">
+  <div class="modal-panel glass">
+    <div class="modal-head">
+      <span class="modal-title">Create a new assignment</span>
+      <button type="button" class="modal-close" id="assignmentModalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="assignmentForm" class="auth-form">
+        <div class="field">
+          <label for="newAssignmentTitle">Assignment title</label>
+          <input type="text" id="newAssignmentTitle" placeholder="e.g. OOP Lab 1" required />
+        </div>
+        <div class="field">
+          <label for="newAssignmentRubric">Grading rubric</label>
+          <textarea id="newAssignmentRubric" rows="7" placeholder="Check for encapsulation, class structure, inheritance, and error handling..." required></textarea>
+        </div>
+        <div class="form-error" id="assignmentError"></div>
+        <button type="submit" class="btn-primary full" id="assignmentSubmit">Create assignment</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== LOADING OVERLAY (grading in progress) ===================== -->
+<div class="loading-overlay" id="loadingOverlay" role="status" aria-live="polite">
+  <div class="loading-card">
+    <svg class="aperture-spinner" viewBox="0 0 120 120" fill="none">
+      <g>
+        <path class="blade" d="M60 60 L60 14 A46 46 0 0 1 96 34 Z" fill="url(#spinGrad)" opacity=".85"/>
+        <path class="blade" d="M60 60 L96 34 A46 46 0 0 1 96 86 Z" fill="url(#spinGrad)" opacity=".7"/>
+        <path class="blade" d="M60 60 L96 86 A46 46 0 0 1 60 106 Z" fill="url(#spinGrad)" opacity=".85"/>
+        <path class="blade" d="M60 60 L60 106 A46 46 0 0 1 24 86 Z" fill="url(#spinGrad)" opacity=".7"/>
+        <path class="blade" d="M60 60 L24 86 A46 46 0 0 1 24 34 Z" fill="url(#spinGrad)" opacity=".85"/>
+        <path class="blade" d="M60 60 L24 34 A46 46 0 0 1 60 14 Z" fill="url(#spinGrad)" opacity=".7"/>
+      </g>
+      <circle cx="60" cy="60" r="10" fill="#03050a"/>
+      <defs>
+        <linearGradient id="spinGrad" x1="14" y1="14" x2="106" y2="106">
+          <stop offset="0%" stop-color="#2fe0ff"/>
+          <stop offset="100%" stop-color="#9b6bff"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="loading-status" id="loadingStatus">Extracting structural blueprints…</div>
+    <div class="loading-sub">Gemini is reasoning over AST evidence, not guessing</div>
+  </div>
+</div>
+
+<!-- ===================== FEEDBACK MODAL ===================== -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-panel workspace-modal glass" role="dialog" aria-modal="true" aria-labelledby="modalStudentName">
+    <div class="modal-head">
+      <div class="modal-student">
+        <div class="gauge" id="modalGauge"></div>
+        <div>
+          <div class="modal-student-name" id="modalStudentName">—</div>
+          <div class="modal-student-file" id="modalStudentFile">—</div>
+        </div>
+      </div>
+      <button type="button" class="modal-close" id="modalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="workspace-modal-body">
+      <nav class="modal-tabs">
+        <button type="button" class="modal-tab active" data-tab="feedback">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>
+          Feedback
+        </button>
+        <button type="button" class="modal-tab" data-tab="requirements">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 11 3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Requirements
+        </button>
+        <button type="button" class="modal-tab" data-tab="metrics">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 3v18h18M7 15l4-6 4 3 5-8"/></svg>
+          Structural metrics
+        </button>
+      </nav>
+      <div class="modal-body" id="modalBody">
+        <div class="modal-panel-loading">Loading report…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+<script>
+(function(){
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+
+  /* ---------------------------------------------------------------- */
+  /* Global state                                                      */
+  /* ---------------------------------------------------------------- */
+  let sb = null;                 // supabase-js client instance
+  let authConfigured = false;
+  let currentSession = null;     // supabase session object, or null
+  let assignments = [];          // this instructor's assignments
+  let selectedFile = null;
+  let hasAutoOpenedCreateModal = false;
+  let lastReportCache = {};
+
+  /* ---------------------------------------------------------------- */
+  /* Elements                                                          */
+  /* ---------------------------------------------------------------- */
+  const headerActions = $('headerActions');
+  const landingHero = $('landingHero');
+  const workspace = $('workspace');
+  const resultsSection = $('resultsSection');
+  const configWarning = $('configWarning');
+  const workspaceName = $('workspaceName');
+
+  const heroGetStarted = $('heroGetStarted');
+  const heroLogIn = $('heroLogIn');
+
+  const authModalOverlay = $('authModalOverlay');
+  const authModalClose = $('authModalClose');
+  const loginForm = $('loginForm');
+  const signupForm = $('signupForm');
+  const loginError = $('loginError');
+  const loginNotice = $('loginNotice');
+  const resendConfirmBtn = $('resendConfirmBtn');
+  const signupError = $('signupError');
+  const signupNotice = $('signupNotice');
+  const loginSubmit = $('loginSubmit');
+  const signupSubmit = $('signupSubmit');
+
+  const assignmentSelect = $('assignmentSelect');
+  const assignmentEmptyNote = $('assignmentEmptyNote');
+  const newAssignmentBtn = $('newAssignmentBtn');
+  const assignmentModalOverlay = $('assignmentModalOverlay');
+  const assignmentModalClose = $('assignmentModalClose');
+  const assignmentForm = $('assignmentForm');
+  const assignmentError = $('assignmentError');
+  const assignmentSubmit = $('assignmentSubmit');
+  const newAssignmentTitle = $('newAssignmentTitle');
+  const newAssignmentRubric = $('newAssignmentRubric');
+
+  const dropzone = $('dropzone');
+  const fileInput = $('fileInput');
+  const browseBtn = $('browseBtn');
+  const fileChip = $('fileChip');
+  const removeFileBtn = $('removeFile');
+  const analyzeBtn = $('analyzeBtn');
+  const errorBanner = $('errorBanner');
+  const errorMessage = $('errorMessage');
+
+  const resultsBody = $('resultsBody');
+  const statTotal = $('statTotal');
+  const statGraded = $('statGraded');
+  const statFailed = $('statFailed');
+
+  const loadingOverlay = $('loadingOverlay');
+  const loadingStatus = $('loadingStatus');
+
+  const modalOverlay = $('modalOverlay');
+  const modalClose = $('modalClose');
+  const modalBody = $('modalBody');
+  const modalGauge = $('modalGauge');
+  const modalStudentName = $('modalStudentName');
+  const modalStudentFile = $('modalStudentFile');
+
+  function escapeHTML(str){
+    return String(str ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Generic modal helpers                                             */
+  /* ---------------------------------------------------------------- */
+  function openModalEl(el){ el.classList.add('show'); }
+  function closeModalEl(el){ el.classList.remove('show'); }
+  function anyModalOpen(){ return document.querySelector('.modal-overlay.show'); }
+
+  document.querySelectorAll('.modal-overlay').forEach((overlay) => {
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModalEl(overlay); });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape'){ const open = anyModalOpen(); if (open) closeModalEl(open); }
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Theme toggle                                                       */
+  /* ---------------------------------------------------------------- */
+  const themeToggle = $('themeToggle');
+  const hljsThemeLink = $('hljsTheme');
+  const HLJS_DARK = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css';
+  const HLJS_LIGHT = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css';
+
+  function applyTheme(theme){
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('codelens_theme', theme); } catch(e){}
+    if (hljsThemeLink) hljsThemeLink.href = theme === 'light' ? HLJS_LIGHT : HLJS_DARK;
+  }
+  themeToggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    applyTheme(current === 'light' ? 'dark' : 'light');
+  });
+  // Sync the code-highlight stylesheet with whatever the inline boot script already picked.
+  applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+
+  /* ---------------------------------------------------------------- */
+  /* Boot: load public config, init Supabase client, check session     */
+  /* ---------------------------------------------------------------- */
+  async function boot(){
+    try {
+      const res = await fetch('/api/config', { cache: 'no-store' });
+      const cfg = await res.json();
+      authConfigured = !!cfg.auth_configured;
+
+      if (authConfigured){
+        sb = window.supabase.createClient(cfg.supabase_url, cfg.supabase_anon_key, {
+          auth: { persistSession: true, storage: window.localStorage, autoRefreshToken: true }
+        });
+        const { data } = await sb.auth.getSession();
+        currentSession = data.session || null;
+        sb.auth.onAuthStateChange((_event, session) => { onAuthChanged(session); });
+      } else {
+        configWarning.hidden = false;
+      }
+    } catch (err) {
+      authConfigured = false;
+      configWarning.hidden = false;
+    } finally {
+      onAuthChanged(currentSession);
+      document.body.classList.remove('booting');
+    }
+  }
+
+  function onAuthChanged(session){
+    currentSession = session;
+    renderHeaderActions();
+    if (session && session.user){
+      landingHero.hidden = true;
+      workspace.hidden = false;
+      const meta = session.user.user_metadata || {};
+      workspaceName.textContent = meta.name || meta.full_name || session.user.email;
+      loadAssignments();
+    } else {
+      workspace.hidden = true;
+      resultsSection.hidden = true;
+      landingHero.hidden = false;
+      assignments = [];
+      hasAutoOpenedCreateModal = false;
+    }
+  }
+
+  function renderHeaderActions(){
+    if (currentSession && currentSession.user){
+      const meta = currentSession.user.user_metadata || {};
+      const label = meta.name || meta.full_name || currentSession.user.email;
+      headerActions.innerHTML = `
+        <span class="user-chip" title="${escapeHTML(currentSession.user.email)}">${escapeHTML(label)}</span>
+        <button type="button" class="btn-ghost sm" id="logoutBtn">Log out</button>
+      `;
+      $('logoutBtn').addEventListener('click', handleLogout);
+    } else {
+      const disabledAttr = authConfigured ? '' : 'disabled title="Auth not configured on the server"';
+      headerActions.innerHTML = `
+        <button type="button" class="btn-ghost sm" id="headerLoginBtn" ${disabledAttr}>Log in</button>
+        <button type="button" class="btn-primary sm" id="headerSignupBtn" ${disabledAttr}>Get started</button>
+      `;
+      const loginBtn = $('headerLoginBtn');
+      const signupBtn = $('headerSignupBtn');
+      if (loginBtn) loginBtn.addEventListener('click', () => openAuthModal('login'));
+      if (signupBtn) signupBtn.addEventListener('click', () => openAuthModal('signup'));
+    }
+  }
+
+  async function handleLogout(){
+    if (!sb) return;
+    await sb.auth.signOut();
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Auth modal                                                        */
+  /* ---------------------------------------------------------------- */
+  function openAuthModal(tab){
+    loginError.textContent = '';
+    loginNotice.textContent = '';
+    resendConfirmBtn.hidden = true;
+    signupError.textContent = '';
+    signupNotice.textContent = '';
+    setAuthTab(tab || 'login');
+    openModalEl(authModalOverlay);
+  }
+  function setAuthTab(tab){
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t.dataset.authTab === tab));
+    loginForm.hidden = tab !== 'login';
+    signupForm.hidden = tab !== 'signup';
+  }
+  document.querySelectorAll('.auth-tab').forEach(t => t.addEventListener('click', () => setAuthTab(t.dataset.authTab)));
+
+  heroGetStarted.addEventListener('click', () => { if (authConfigured) openAuthModal('signup'); });
+  heroLogIn.addEventListener('click', () => { if (authConfigured) openAuthModal('login'); });
+  authModalClose.addEventListener('click', () => closeModalEl(authModalOverlay));
+
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    loginError.textContent = '';
+    loginNotice.textContent = '';
+    resendConfirmBtn.hidden = true;
+    loginSubmit.disabled = true;
+    loginSubmit.textContent = 'Logging in…';
+    try {
+      const { error } = await sb.auth.signInWithPassword({
+        email: $('loginEmail').value.trim(),
+        password: $('loginPassword').value,
+      });
+      if (error) {
+        loginError.textContent = error.message;
+        if (/email not confirmed/i.test(error.message)){
+          resendConfirmBtn.hidden = false;
+        }
+        return;
+      }
+      closeModalEl(authModalOverlay);
+      loginForm.reset();
+    } catch (err) {
+      loginError.textContent = 'Something went wrong logging in. Please try again.';
+    } finally {
+      loginSubmit.disabled = false;
+      loginSubmit.textContent = 'Log in';
+    }
+  });
+
+  resendConfirmBtn.addEventListener('click', async () => {
+    const email = $('loginEmail').value.trim();
+    if (!email){ loginError.textContent = 'Enter your email above first.'; return; }
+    resendConfirmBtn.disabled = true;
+    resendConfirmBtn.textContent = 'Sending…';
+    try {
+      const { error } = await sb.auth.resend({ type: 'signup', email });
+      if (error){
+        loginError.textContent = error.message;
+      } else {
+        loginError.textContent = '';
+        resendConfirmBtn.hidden = true;
+        loginNotice.textContent = `Confirmation email re-sent to ${email} — check your inbox and spam folder.`;
+      }
+    } catch (err) {
+      loginError.textContent = 'Could not resend the email. Please try again in a moment.';
+    } finally {
+      resendConfirmBtn.disabled = false;
+      resendConfirmBtn.textContent = 'Resend confirmation email';
+    }
+  });
+
+  signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    signupError.textContent = '';
+    signupNotice.textContent = '';
+    signupSubmit.disabled = true;
+    signupSubmit.textContent = 'Creating account…';
+    try {
+      const { data, error } = await sb.auth.signUp({
+        email: $('signupEmail').value.trim(),
+        password: $('signupPassword').value,
+        options: { data: { name: $('signupName').value.trim() } },
+      });
+      if (error) { signupError.textContent = error.message; return; }
+      if (data.session){
+        closeModalEl(authModalOverlay);
+        signupForm.reset();
+      } else {
+        signupNotice.textContent = "We've sent a confirmation link to your email — check your inbox (and spam folder), click it, then come back and log in. You only need to do this once.";
+        signupForm.reset();
+        setTimeout(() => setAuthTab('login'), 2200);
+      }
+    } catch (err) {
+      signupError.textContent = 'Something went wrong creating your account. Please try again.';
+    } finally {
+      signupSubmit.disabled = false;
+      signupSubmit.textContent = 'Create account';
+    }
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Password show/hide toggles                                        */
+  /* ---------------------------------------------------------------- */
+  document.querySelectorAll('.password-toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = $(btn.dataset.target);
+      if (!input) return;
+      const nowShowing = input.type === 'password';
+      input.type = nowShowing ? 'text' : 'password';
+      btn.querySelector('.icon-eye').style.display = nowShowing ? 'none' : '';
+      btn.querySelector('.icon-eye-off').style.display = nowShowing ? '' : 'none';
+      btn.setAttribute('aria-label', nowShowing ? 'Hide password' : 'Show password');
+    });
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Authenticated fetch helper                                        */
+  /* ---------------------------------------------------------------- */
+  async function authFetch(url, options){
+    options = options || {};
+    const headers = Object.assign({}, options.headers || {});
+    if (currentSession && currentSession.access_token){
+      headers['Authorization'] = 'Bearer ' + currentSession.access_token;
+    }
+    return fetch(url, Object.assign({}, options, { headers }));
+  }
+
+  function showError(msg){ errorMessage.textContent = msg; errorBanner.classList.add('show'); }
+  function hideError(){ errorBanner.classList.remove('show'); }
+
+  /* ---------------------------------------------------------------- */
+  /* Assignments                                                       */
+  /* ---------------------------------------------------------------- */
+  async function loadAssignments(){
+    try {
+      const res = await authFetch('/api/assignments');
+      let payload = null;
+      try { payload = await res.json(); } catch (parseErr) { /* handled below */ }
+      if (!res.ok){
+        const detail = (payload && payload.detail) ? payload.detail : `HTTP ${res.status}`;
+        throw new Error(`Could not load your assignments — ${detail}`);
+      }
+      assignments = payload;
+      populateAssignmentSelect();
+      if (assignments.length === 0 && !hasAutoOpenedCreateModal){
+        hasAutoOpenedCreateModal = true;
+        openAssignmentModal();
+      }
+    } catch (err) {
+      showError(err.message);
+    }
+  }
+
+  function populateAssignmentSelect(){
+    const previouslySelected = assignmentSelect.value;
+    assignmentSelect.innerHTML = '';
+    if (assignments.length === 0){
+      assignmentEmptyNote.hidden = false;
+      const opt = document.createElement('option');
+      opt.textContent = 'No assignments yet';
+      opt.value = '';
+      assignmentSelect.appendChild(opt);
+      assignmentSelect.disabled = true;
+    } else {
+      assignmentEmptyNote.hidden = true;
+      assignmentSelect.disabled = false;
+      assignments.forEach((a) => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.title;
+        assignmentSelect.appendChild(opt);
+      });
+      const stillExists = assignments.some(a => a.id === previouslySelected);
+      assignmentSelect.value = stillExists ? previouslySelected : assignments[0].id;
+    }
+    refreshAnalyzeState();
+  }
+  assignmentSelect.addEventListener('change', refreshAnalyzeState);
+
+  function openAssignmentModal(){
+    assignmentError.textContent = '';
+    assignmentForm.reset();
+    openModalEl(assignmentModalOverlay);
+    newAssignmentTitle.focus();
+  }
+  newAssignmentBtn.addEventListener('click', openAssignmentModal);
+  assignmentModalClose.addEventListener('click', () => closeModalEl(assignmentModalOverlay));
+
+  assignmentForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    assignmentError.textContent = '';
+    assignmentSubmit.disabled = true;
+    assignmentSubmit.textContent = 'Creating…';
+    try {
+      const res = await authFetch('/api/assignments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newAssignmentTitle.value.trim(),
+          rubric_text: newAssignmentRubric.value.trim(),
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.detail || 'Could not create assignment.');
+
+      assignments.unshift(payload);
+      populateAssignmentSelect();
+      assignmentSelect.value = payload.id; // auto-select the new assignment
+      refreshAnalyzeState();
+      closeModalEl(assignmentModalOverlay);
+    } catch (err) {
+      assignmentError.textContent = err.message;
+    } finally {
+      assignmentSubmit.disabled = false;
+      assignmentSubmit.textContent = 'Create assignment';
+    }
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Dropzone                                                          */
+  /* ---------------------------------------------------------------- */
+  function humanSize(bytes){
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  function refreshAnalyzeState(){
+    const hasAssignment = !!assignmentSelect.value;
+    analyzeBtn.disabled = !(hasAssignment && selectedFile);
+  }
+
+  function setSelectedFile(file){
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.zip')){
+      showError('Please select a .zip archive of student .py submissions.');
+      return;
+    }
+    hideError();
+    selectedFile = file;
+    fileChip.textContent = `${file.name} · ${humanSize(file.size)}`;
+    dropzone.classList.add('has-file');
+    refreshAnalyzeState();
+  }
+
+  browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener('change', (e) => setSelectedFile(e.target.files[0]));
+
+  removeFileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectedFile = null;
+    fileInput.value = '';
+    dropzone.classList.remove('has-file');
+    refreshAnalyzeState();
+  });
+
+  ['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, (e) => {
+    e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover');
+  }));
+  ['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (evt === 'dragleave' && e.target !== dropzone) return;
+    dropzone.classList.remove('dragover');
+  }));
+  dropzone.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) setSelectedFile(file);
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Upload + grading                                                  */
+  /* ---------------------------------------------------------------- */
+  const LOADING_STEPS = [
+    'Extracting structural blueprints…',
+    'Walking the AST for every submission…',
+    'Sending blueprints to Gemini…',
+    'Scoring against the rubric…',
+    'Compiling pedagogical feedback…'
+  ];
+  function runLoadingCycle(){
+    let i = 0;
+    loadingStatus.textContent = LOADING_STEPS[0];
+    return setInterval(() => { i = (i + 1) % LOADING_STEPS.length; loadingStatus.textContent = LOADING_STEPS[i]; }, 1500);
+  }
+
+  analyzeBtn.addEventListener('click', async () => {
+    const assignmentId = assignmentSelect.value;
+    if (!selectedFile || !assignmentId) return;
+    hideError();
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    loadingOverlay.classList.add('show');
+    const cycle = runLoadingCycle();
+    analyzeBtn.disabled = true;
+
+    try {
+      const res = await authFetch(`/api/assignments/${encodeURIComponent(assignmentId)}/upload-bulk`, {
+        method: 'POST',
+        body: formData
+      });
+      let payload;
+      try { payload = await res.json(); }
+      catch(e){ throw new Error('Server returned an unreadable response.'); }
+      if (!res.ok){ throw new Error(payload.detail || `Upload failed (HTTP ${res.status}).`); }
+      renderResults(payload);
+    } catch (err) {
+      showError(err.message || 'Something went wrong while uploading.');
+    } finally {
+      clearInterval(cycle);
+      loadingOverlay.classList.remove('show');
+      refreshAnalyzeState();
+    }
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Score gauge (signature "aperture" ring)                           */
+  /* ---------------------------------------------------------------- */
+  let gaugeIdCounter = 0;
+  function scoreGaugeSVG(score, size){
+    size = size || 46;
+    const r = size/2 - 5;
+    const c = size/2;
+    const circumference = 2 * Math.PI * r;
+    const pct = Math.max(0, Math.min(100, score)) / 100;
+    const dash = circumference * pct;
+    const gid = 'gg' + (gaugeIdCounter++);
+    const blades = Array.from({length:8}).map((_,i) => {
+      const angle = i * 45;
+      return `<rect x="${c-1.1}" y="3" width="2.2" height="7" rx="1.1" fill="rgba(255,255,255,.14)" transform="rotate(${angle} ${c} ${c})"/>`;
+    }).join('');
+    return `
+      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+        <defs>
+          <linearGradient id="${gid}" x1="0" y1="0" x2="${size}" y2="${size}">
+            <stop offset="0%" stop-color="#9b6bff"/>
+            <stop offset="100%" stop-color="#2fe0ff"/>
+          </linearGradient>
+        </defs>
+        ${blades}
+        <circle cx="${c}" cy="${c}" r="${r}" stroke="rgba(255,255,255,.08)" stroke-width="4" fill="none"/>
+        <circle cx="${c}" cy="${c}" r="${r}" stroke="url(#${gid})" stroke-width="4" fill="none"
+          stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${circumference - dash}"
+          transform="rotate(-90 ${c} ${c})"/>
+      </svg>`;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Results rendering                                                  */
+  /* ---------------------------------------------------------------- */
+  function renderResults(payload){
+    resultsSection.hidden = false;
+    statTotal.textContent = payload.total_python_files;
+    statGraded.textContent = payload.graded;
+    statFailed.textContent = payload.failed;
+
+    resultsBody.innerHTML = '';
+
+    if (!payload.results || payload.results.length === 0){
+      resultsBody.innerHTML = `<tr class="empty-row"><td colspan="4">No Python files were found in that archive.</td></tr>`;
+      return;
+    }
+
+    payload.results.forEach((r) => {
+      const tr = document.createElement('tr');
+      const scoreDisplay = (r.success && typeof r.score === 'number') ? r.score : '—';
+      const gaugeHTML = r.success && typeof r.score === 'number' ? scoreGaugeSVG(r.score) : scoreGaugeSVG(0);
+      const tierClass = typeof scoreDisplay === 'number'
+        ? (scoreDisplay >= 85 ? 'tier-high' : scoreDisplay >= 60 ? 'tier-mid' : 'tier-low')
+        : '';
+
+      tr.innerHTML = `
+        <td data-label="Student">
+          <div class="student-cell">
+            <span class="student-id">${escapeHTML(r.student_identifier)}</span>
+            <span class="student-file">${escapeHTML(r.file_name)}</span>
+          </div>
+        </td>
+        <td data-label="Score">
+          <div class="gauge-cell">
+            <div class="gauge">${gaugeHTML}</div>
+            <span class="gauge-num ${tierClass}">${scoreDisplay}${typeof scoreDisplay === 'number' ? '/100' : ''}</span>
+          </div>
+        </td>
+        <td data-label="Status">
+          <span class="status-pill ${r.success ? 'graded' : 'failed'}">
+            <span class="dot"></span>${r.success ? 'Graded' : 'Failed'}
+          </span>
+        </td>
+        <td data-label="Feedback">
+          <button class="btn-feedback" ${r.success && r.report_id ? '' : 'disabled'} data-report-id="${r.report_id || ''}">
+            ${r.success ? 'View feedback' : (r.error ? 'See error' : 'Unavailable')}
+          </button>
+        </td>
+      `;
+      resultsBody.appendChild(tr);
+
+      const feedbackBtn = tr.querySelector('.btn-feedback');
+      feedbackBtn.addEventListener('click', () => {
+        if (r.success && r.report_id){
+          openReportModal(r.report_id, r.student_identifier, r.file_name, r.score);
+        } else {
+          openErrorModal(r.student_identifier, r.file_name, r.error || 'This submission could not be graded.');
+        }
+      });
+    });
+
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Feedback modal                                                     */
+  /* ---------------------------------------------------------------- */
+  let activeTab = 'feedback';
+
+  function openErrorModal(student, file, message){
+    modalStudentName.textContent = student;
+    modalStudentFile.textContent = file;
+    modalGauge.innerHTML = scoreGaugeSVG(0, 52);
+    document.querySelectorAll('#modalOverlay .modal-tab').forEach(t => t.style.display = 'none');
+    modalBody.innerHTML = `<div class="modal-panel-loading" style="color:var(--danger)">${escapeHTML(message)}</div>`;
+    openModalEl(modalOverlay);
+  }
+
+  async function openReportModal(reportId, student, file, score){
+    document.querySelectorAll('#modalOverlay .modal-tab').forEach(t => t.style.display = '');
+    modalStudentName.textContent = student;
+    modalStudentFile.textContent = file;
+    modalGauge.innerHTML = scoreGaugeSVG(score || 0, 52);
+    modalBody.innerHTML = `<div class="modal-panel-loading">Loading report…</div>`;
+    openModalEl(modalOverlay);
+    setActiveTab('feedback');
+
+    try {
+      let report = lastReportCache[reportId];
+      if (!report){
+        const res = await authFetch(`/api/reports/${encodeURIComponent(reportId)}`);
+        if (!res.ok) throw new Error('Could not load this report.');
+        report = await res.json();
+        lastReportCache[reportId] = report;
+      }
+      renderModalContent(report);
+    } catch (err) {
+      modalBody.innerHTML = `<div class="modal-panel-loading" style="color:var(--danger)">${escapeHTML(err.message)}</div>`;
+    }
+  }
+
+  function renderModalContent(report){
+    modalBody.dataset.feedback = report.pedagogical_feedback || '_No feedback returned._';
+    modalBody.dataset.requirements = JSON.stringify(report.requirements_checked || []);
+    modalBody.dataset.metrics = JSON.stringify(report.structural_metrics || {});
+    paintTab(activeTab);
+  }
+
+  function paintTab(tab){
+    if (!modalBody.dataset.feedback){ return; }
+    if (tab === 'feedback'){
+      const raw = modalBody.dataset.feedback;
+      const html = (typeof marked !== 'undefined') ? marked.parse(raw) : `<p>${escapeHTML(raw)}</p>`;
+      modalBody.innerHTML = `<div class="feedback-md">${html}</div>`;
+      if (typeof hljs !== 'undefined'){
+        modalBody.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
+      }
+    } else if (tab === 'requirements'){
+      const reqs = JSON.parse(modalBody.dataset.requirements || '[]');
+      if (!reqs.length){
+        modalBody.innerHTML = `<div class="modal-panel-loading">No requirement breakdown returned.</div>`;
+        return;
+      }
+      modalBody.innerHTML = `<div class="req-list">${reqs.map(req => `
+        <div class="req-item">
+          <span class="req-badge ${req.status}">${req.status}</span>
+          <div class="req-text">
+            <b>${escapeHTML(req.requirement_name)} ${req.deduction ? `<span style="color:var(--danger)">−${req.deduction}</span>` : ''}</b>
+            <span>${escapeHTML(req.technical_rationale)}</span>
+          </div>
+        </div>`).join('')}</div>`;
+    } else if (tab === 'metrics'){
+      const metrics = JSON.parse(modalBody.dataset.metrics || '{}');
+      const entries = Object.entries(metrics);
+      if (!entries.length){
+        modalBody.innerHTML = `<div class="modal-panel-loading">No structural metrics returned.</div>`;
+        return;
+      }
+      modalBody.innerHTML = `<div class="metrics-grid">${entries.map(([k,v]) => `
+        <div class="metric-tile">
+          <div class="v">${escapeHTML(v)}</div>
+          <div class="l">${escapeHTML(k.replace(/_/g,' '))}</div>
+        </div>`).join('')}</div>`;
+    }
+  }
+
+  function setActiveTab(tab){
+    activeTab = tab;
+    document.querySelectorAll('#modalOverlay .modal-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    paintTab(tab);
+  }
+  document.querySelectorAll('#modalOverlay .modal-tab').forEach(t => t.addEventListener('click', () => setActiveTab(t.dataset.tab)));
+  modalClose.addEventListener('click', () => closeModalEl(modalOverlay));
+
+  /* ---------------------------------------------------------------- */
+  /* Go                                                                 */
+  /* ---------------------------------------------------------------- */
+  renderHeaderActions();
+  boot();
+})();
+</script>
+</body>
+</html>

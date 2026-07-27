@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+google-generativeai
+anthropic
+cryptography
+python-dotenv
+supabase
+sqlalchemy
+psycopg2-binary
