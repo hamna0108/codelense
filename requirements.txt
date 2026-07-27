@@ -8,3 +8,4 @@ python-dotenv
 supabase
 sqlalchemy
 psycopg2-binary
+python-multipart
