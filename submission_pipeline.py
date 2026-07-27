@@ -8,7 +8,7 @@ import io
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -63,10 +63,10 @@ class FileProcessingResult:
     student_identifier: str
     file_name: str
     success: bool
-    submission_id: str | None = None
-    report_id: str | None = None
-    score: int | None = None
-    error: str | None = None
+    submission_id: Optional[str] = None
+    report_id: Optional[str] = None
+    score: Optional[int] = None
+    error: Optional[str] = None
 
 
 @dataclass
@@ -154,7 +154,7 @@ def process_bulk_submissions(
     *,
     assignment: Assignment,
     zip_bytes: bytes,
-    grader: AIEvaluationEngine | None = None,
+    grader: Optional[AIEvaluationEngine] = None,
 ) -> BulkProcessingSummary:
     """
     Extract files, group them by student folder/identifier into single projects,

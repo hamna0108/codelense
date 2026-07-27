@@ -164,7 +164,7 @@ class AIEvaluationEngine:
         self,
         *,
         model: str = DEFAULT_GEMINI_MODEL,
-        api_key: str | None = None,
+        api_key: Optional[str] = None,
     ) -> None:
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.model_name = model

@@ -104,7 +104,7 @@ def _normalize_sqlalchemy_url(url: str) -> str:
 
 
 @lru_cache(maxsize=1)
-def get_engine(*, echo: bool | None = None) -> Engine:
+def get_engine(*, echo: Optional[bool] = None) -> Engine:
     """Create (once) and return the shared SQLAlchemy Engine."""
     url = _normalize_sqlalchemy_url(resolve_database_url())
     if echo is None:

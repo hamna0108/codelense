@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import ast
 import json
-from typing import Any
+from typing import Any, Optional
 
 
 class _LocalVarCollector(ast.NodeVisitor):
@@ -292,7 +292,7 @@ class CodeBlueprintExtractor(ast.NodeVisitor):
         all_instance_vars = set()
         for child in node.body:
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                method_data = _analyze_location_or_method = _analyze_function(child)
+                method_data = _analyze_function(child)
                 class_info["methods"].append(method_data)
                 
                 # Collect instance variables found inside methods (like __init__)

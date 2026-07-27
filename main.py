@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Response, UploadFile, status
@@ -71,7 +71,7 @@ def _print_config_status_on_boot() -> None:
 
 
 def get_current_instructor(
-    authorization: str | None = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ) -> Instructor:
     """
@@ -144,8 +144,8 @@ def get_current_instructor(
 
 
 class PublicConfigOut(BaseModel):
-    supabase_url: str | None = None
-    supabase_anon_key: str | None = None
+    supabase_url: Optional[str] = None
+    supabase_anon_key: Optional[str] = None
     auth_configured: bool
 
 
@@ -166,10 +166,10 @@ class FileResultOut(BaseModel):
     student_identifier: str
     file_name: str
     success: bool
-    submission_id: str | None = None
-    report_id: str | None = None
-    score: int | None = None
-    error: str | None = None
+    submission_id: Optional[str] = None
+    report_id: Optional[str] = None
+    score: Optional[int] = None
+    error: Optional[str] = None
 
 
 class BulkUploadResponse(BaseModel):
