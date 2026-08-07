@@ -32,7 +32,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db, get_supabase_client
-from models import Assignment, GradingReport, Instructor
+from models import Assignment, GradingReport, Instructor, Submission
 from submission_pipeline import process_bulk_submissions
 
 app = FastAPI(
@@ -212,6 +212,21 @@ class GradingReportOut(BaseModel):
     generated_at: str
 
 
+class HistoricalSubmissionOut(BaseModel):
+    submission_id: str
+    student_identifier: str
+    file_name: str
+    status: str
+    score: Optional[int] = None
+    report_id: Optional[str] = None
+
+
+class HistoricalResultsOut(BaseModel):
+    assignment_id: str
+    total_submissions: int
+    results: list[HistoricalSubmissionOut]
+
+
 # ---------------------------------------------------------------------------
 # Health / config / static frontend
 # ---------------------------------------------------------------------------
@@ -304,6 +319,60 @@ def create_assignment(
         title=assignment.title,
         rubric_text=assignment.rubric_text,
         created_at=assignment.created_at.isoformat(),
+    )
+
+
+@app.get(
+    "/api/assignments/{assignment_id}/results",
+    response_model=HistoricalResultsOut,
+)
+def get_assignment_results(
+    assignment_id: UUID,
+    current_instructor: Instructor = Depends(get_current_instructor),
+    db: Session = Depends(get_db),
+) -> HistoricalResultsOut:
+    """Fetch all historical submissions and their scores for an assignment."""
+    assignment = db.get(Assignment, assignment_id)
+    
+    if assignment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assignment {assignment_id} not found",
+        )
+        
+    if assignment.instructor_id != current_instructor.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this assignment",
+        )
+
+    # Fetch all submissions for this specific assignment
+    submissions = db.scalars(
+        select(Submission).where(Submission.assignment_id == assignment_id)
+    ).all()
+
+    # Map the submissions and their grading reports to the output schema
+    results = []
+    for sub in submissions:
+        report = db.scalars(
+            select(GradingReport).where(GradingReport.submission_id == sub.id)
+        ).first()
+
+        results.append(
+            HistoricalSubmissionOut(
+                submission_id=str(sub.id),
+                student_identifier=sub.student_identifier,
+                file_name=sub.file_name,
+                status=sub.status.value,
+                score=report.total_score if report else None,
+                report_id=str(report.id) if report else None,
+            )
+        )
+
+    return HistoricalResultsOut(
+        assignment_id=str(assignment.id),
+        total_submissions=len(results),
+        results=results
     )
 
 

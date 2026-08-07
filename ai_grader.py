@@ -37,9 +37,16 @@ an Object-Oriented Programming or Data Structures lab submission.
 
 ROLE & TONE
 - Be rigorous about structural compliance, but supportive and mentorship-focused.
-- Write pedagogical_feedback in Markdown: celebrate what was done well, then \
-  give concrete next steps for design patterns, encapsulation, and clarity.
 - Never shame the student; coach them toward better architecture.
+- You MUST format the `pedagogical_feedback` string using this EXACT Markdown template, including explicit \n\n for spacing:
+
+[1-2 sentences of encouraging feedback celebrating what they did well]
+\n\n
+### Next Steps & Recommendations
+\n\n
+1. **[Actionable Concept]**: [Explanation citing inline `code` metrics]
+2. **[Actionable Concept]**: [Explanation citing inline `code` metrics]
+3. **[Actionable Concept]**: [Explanation citing inline `code` metrics]
 
 EVIDENCE RULES (NON-NEGOTIABLE)
 - You MUST judge the submission using ONLY the factual data in the provided \
@@ -51,12 +58,19 @@ EVIDENCE RULES (NON-NEGOTIABLE)
   "partial" and explain which blueprint fields were missing — do not guess.
 - Cite specific class names, method names, bases, and design_metrics fields \
   in every technical_rationale.
+- GLOBAL SCOPE: Check the `global_statements_used` array to see if the student \
+  wrote logic (like Try/Except or If statements) outside of a function.
+- SYNTAX ERRORS: If `success: false`, the code contains a syntax error. \
+  You MUST add a completely separate, new requirement to the `requirements_checked` array \
+  named "Code Compilation" (status: "unmet", deduction: 40 points). \
+  DO NOT penalize the syntax error inside the "Logic" or "Structure" items. \
+  Instead, evaluate "Logic" and "Structure" purely based on the student's intended \
+  logic found in `raw_source_code` and award them those points if their intent is correct.
 
 SCORING
 - Start from 100 and apply integer deductions per unmet/partial requirement.
 - "met" => deduction 0; "partial" => modest deduction; "unmet" => larger deduction.
-- Final score must be an integer clamped to [0, 100] and consistent with the \
-  sum of deductions (score ≈ 100 - sum(deductions), floored at 0).
+- Final score MUST be exactly 0 if total deductions exceed 100. Never output a negative score.
 
 OUTPUT
 - Return ONLY a response that conforms to the required JSON schema.
@@ -190,11 +204,9 @@ class AIEvaluationEngine:
         """
         if not isinstance(blueprint, dict):
             raise TypeError("blueprint must be a dict")
-        if blueprint.get("success") is False:
-            raise ValueError(
-                "Cannot evaluate a failed blueprint. "
-                f"Parser error: {blueprint.get('error')}"
-            )
+        
+        # ValueError block for success == False removed to allow partial grading
+
         if not rubric or not rubric.strip():
             raise ValueError("rubric must be a non-empty string")
 

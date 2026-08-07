@@ -258,7 +258,7 @@
 
   /* ============================= BOOT LOADER ============================= */
   #bootLoader{ display:none; min-height:70vh; align-items:center; justify-content:center; flex-direction:column; gap:18px; }
-  body.booting .hero, body.booting .workspace, body.booting .results-section{ display:none !important; }
+  body.booting .hero, body.booting .workspace, body.booting .results-section, body.booting #workspaceTabsWrap{ display:none !important; }
   body.booting #bootLoader{ display:flex; }
   .boot-ring{ width:56px; height:56px; }
   .boot-ring .blade{ transform-origin:28px 28px; animation:blade-spin 2.6s var(--ease) infinite; }
@@ -293,8 +293,20 @@
   .subhead{ font-size:17.5px; line-height:1.65; color:var(--text-mid); max-width:52ch; margin:0 0 40px; }
   .hero-cta{ display:flex; gap:14px; flex-wrap:wrap; }
 
+  /* ============================= WORKSPACE NAVIGATION ============================= */
+  .workspace-tabs{
+    display:flex; gap:8px; border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:32px; margin-top: 40px;
+  }
+  .w-tab{
+    font-family:var(--font-body); font-weight:600; font-size:14.5px; color:var(--text-dim); background:none; border:none; padding:8px 16px; border-radius:99px; cursor:pointer;
+    transition:all .2s var(--ease);
+  }
+  .w-tab:hover{ color:var(--text-hi); background:var(--surface); }
+  .w-tab.active{ color:var(--bg-void); background:linear-gradient(100deg, var(--cyan-soft), var(--violet-soft)); box-shadow:var(--shadow-sm); }
+  :root[data-theme="light"] .w-tab.active{ color:#fff; background:linear-gradient(100deg, var(--cyan-dim), var(--violet-dim)); }
+
   /* ============================= WORKSPACE (authenticated) ============================= */
-  .workspace{ padding:64px 0 20px; }
+  .workspace{ padding:0 0 20px; }
   .workspace-head{ margin-bottom:28px; }
   .headline-sm{ font-family:var(--font-display); font-weight:600; font-size:clamp(24px,3.6vw,32px); margin:14px 0 0; }
   .headline-sm .name-accent{ background:linear-gradient(100deg, var(--cyan-soft), var(--violet-soft)); -webkit-background-clip:text; background-clip:text; color:transparent; }
@@ -447,6 +459,18 @@
   .btn-feedback:disabled{ opacity:.3; cursor:default; transform:none; }
 
   .empty-row td{ text-align:center; padding:60px 18px; color:var(--text-dim); font-size:13.5px; }
+
+  /* ============================= HISTORY GRID ============================= */
+  .history-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:20px; }
+  .history-card{ 
+    padding:24px; border-radius:var(--r-md); cursor:pointer;
+    border:1px solid var(--border); background:var(--surface);
+    transition:all .25s var(--ease);
+  }
+  .history-card:hover{ border-color:var(--cyan-dim); background:var(--surface-strong); transform:translateY(-2px); box-shadow:var(--shadow-md); }
+  .hc-title{ font-family:var(--font-display); font-weight:600; font-size:18px; margin-bottom:8px; color:var(--text-hi); }
+  .hc-date{ font-family:var(--font-mono); font-size:13px; color:var(--text-dim); }
+  .hc-empty{ grid-column:1 / -1; padding:60px 20px; text-align:center; color:var(--text-dim); font-size:14px; background:var(--surface); border:1px dashed var(--border-strong); border-radius:var(--r-md); }
 
   /* ============================= LOADING OVERLAY (grading) ============================= */
   .loading-overlay{ position:fixed; inset:0; z-index:80; display:none; align-items:center; justify-content:center; background:rgba(3,5,10,.72); backdrop-filter:blur(6px); }
@@ -676,23 +700,31 @@
     </div>
   </section>
 
-  <!-- ===================== WORKSPACE (authenticated) ===================== -->
+  <!-- ===================== WORKSPACE NAVIGATION ===================== -->
+  <div id="workspaceTabsWrap" hidden>
+    <div class="workspace-tabs">
+      <button class="w-tab active" data-view="upload">New Upload</button>
+      <button class="w-tab" data-view="history">Previous Assessments</button>
+    </div>
+  </div>
+
+  <!-- ===================== WORKSPACE (authenticated - New Upload) ===================== -->
   <section class="workspace" id="workspace" hidden>
     <div class="workspace-head">
       <span class="eyebrow">AST-verified · AI-reasoned</span>
       <h1 class="headline-sm">Welcome back, <span class="name-accent" id="workspaceName">instructor</span></h1>
-      <p class="workspace-sub">Pick an assignment, drop a ZIP of student submissions, and CodeLens takes it from there.</p>
+      <p class="workspace-sub">Pick an Assessments, drop a ZIP of student submissions, and CodeLens takes it from there.</p>
     </div>
 
     <div class="assignment-card glass">
       <div class="assignment-row">
         <div class="field grow">
-          <label for="assignmentSelect">Assignment</label>
+          <label for="assignmentSelect">Assessments</label>
           <select id="assignmentSelect"></select>
         </div>
-        <button type="button" class="btn-secondary" id="newAssignmentBtn">+ New assignment</button>
+        <button type="button" class="btn-secondary" id="newAssignmentBtn">+ New Assessments</button>
       </div>
-      <p class="assignment-empty-note" id="assignmentEmptyNote" hidden>You don't have any assignments yet — create one to start grading.</p>
+      <p class="assignment-empty-note" id="assignmentEmptyNote" hidden>You don't have any Assessments yet — create one to start grading.</p>
     </div>
 
     <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload ZIP of student submissions">
@@ -731,9 +763,19 @@
     </div>
   </section>
 
+  <!-- ===================== HISTORY LIST (authenticated) ===================== -->
+  <section class="workspace" id="historySection" hidden>
+    <div class="workspace-head">
+      <h2 class="headline-sm">Previous Assessments</h2>
+      <p class="workspace-sub">Select an Assessments to view its historical grading results.</p>
+    </div>
+    <div id="historyList" class="history-grid"></div>
+  </section>
+
+  <!-- ===================== RESULTS TABLE ===================== -->
   <section class="results-section" id="resultsSection" hidden>
     <div class="results-head">
-      <h2 class="results-title">Grading results</h2>
+      <h2 class="results-title" id="resultsTitle">Grading results</h2>
       <div class="stat-chips">
         <span class="stat-chip">Files <b id="statTotal">0</b></span>
         <span class="stat-chip ok">Graded <b id="statGraded">0</b></span>
@@ -856,8 +898,8 @@
         </linearGradient>
       </defs>
     </svg>
-    <div class="loading-status" id="loadingStatus">Extracting structural blueprints…</div>
-    <div class="loading-sub">Gemini is reasoning over AST evidence, not guessing</div>
+    <div class="loading-status" id="loadingStatus">Loading...</div>
+    <div class="loading-sub" id="loadingSubStatus">Please wait</div>
   </div>
 </div>
 
@@ -907,7 +949,7 @@
   const $ = (id) => document.getElementById(id);
 
   /* ---------------------------------------------------------------- */
-  /* Global state                                                      */
+  /* Global state                                                     */
   /* ---------------------------------------------------------------- */
   let sb = null;                 // supabase-js client instance
   let authConfigured = false;
@@ -918,11 +960,14 @@
   let lastReportCache = {};
 
   /* ---------------------------------------------------------------- */
-  /* Elements                                                          */
+  /* Elements                                                         */
   /* ---------------------------------------------------------------- */
   const headerActions = $('headerActions');
   const landingHero = $('landingHero');
+  const workspaceTabsWrap = $('workspaceTabsWrap');
   const workspace = $('workspace');
+  const historySection = $('historySection');
+  const historyList = $('historyList');
   const resultsSection = $('resultsSection');
   const configWarning = $('configWarning');
   const workspaceName = $('workspaceName');
@@ -962,6 +1007,7 @@
   const errorBanner = $('errorBanner');
   const errorMessage = $('errorMessage');
 
+  const resultsTitle = $('resultsTitle');
   const resultsBody = $('resultsBody');
   const statTotal = $('statTotal');
   const statGraded = $('statGraded');
@@ -969,6 +1015,7 @@
 
   const loadingOverlay = $('loadingOverlay');
   const loadingStatus = $('loadingStatus');
+  const loadingSubStatus = $('loadingSubStatus');
 
   const modalOverlay = $('modalOverlay');
   const modalClose = $('modalClose');
@@ -982,7 +1029,7 @@
   }
 
   /* ---------------------------------------------------------------- */
-  /* Generic modal helpers                                             */
+  /* Generic modal helpers                                            */
   /* ---------------------------------------------------------------- */
   function openModalEl(el){ el.classList.add('show'); }
   function closeModalEl(el){ el.classList.remove('show'); }
@@ -996,7 +1043,7 @@
   });
 
   /* ---------------------------------------------------------------- */
-  /* Theme toggle                                                       */
+  /* Theme toggle                                                     */
   /* ---------------------------------------------------------------- */
   const themeToggle = $('themeToggle');
   const hljsThemeLink = $('hljsTheme');
@@ -1012,11 +1059,10 @@
     const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
     applyTheme(current === 'light' ? 'dark' : 'light');
   });
-  // Sync the code-highlight stylesheet with whatever the inline boot script already picked.
   applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
 
   /* ---------------------------------------------------------------- */
-  /* Boot: load public config, init Supabase client, check session     */
+  /* Boot: load public config, init Supabase client, check session    */
   /* ---------------------------------------------------------------- */
   async function boot(){
     try {
@@ -1048,12 +1094,16 @@
     renderHeaderActions();
     if (session && session.user){
       landingHero.hidden = true;
-      workspace.hidden = false;
+      workspaceTabsWrap.hidden = false;
+      setWorkspaceView('upload');
+      
       const meta = session.user.user_metadata || {};
       workspaceName.textContent = meta.name || meta.full_name || session.user.email;
       loadAssignments();
     } else {
+      workspaceTabsWrap.hidden = true;
       workspace.hidden = true;
+      historySection.hidden = true;
       resultsSection.hidden = true;
       landingHero.hidden = false;
       assignments = [];
@@ -1089,7 +1139,67 @@
   }
 
   /* ---------------------------------------------------------------- */
-  /* Auth modal                                                        */
+  /* View Navigation (New Upload vs Previous Assignments)             */
+  /* ---------------------------------------------------------------- */
+  /* ---------------------------------------------------------------- */
+  /* View Navigation (New Upload vs Previous Assignments)             */
+  /* ---------------------------------------------------------------- */
+  function setWorkspaceView(view) {
+    document.querySelectorAll('.w-tab').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    
+    // STRICT RESET: Always hide and wipe the results table when switching tabs
+    resultsSection.hidden = true;
+    resultsBody.innerHTML = '';
+    statTotal.textContent = '0';
+    statGraded.textContent = '0';
+    statFailed.textContent = '0';
+
+    if (view === 'upload') {
+      workspace.hidden = false;
+      historySection.hidden = true;
+      
+      // Also clear any lingering uploaded file so it's a completely fresh start
+      selectedFile = null;
+      fileInput.value = '';
+      dropzone.classList.remove('has-file');
+      if (typeof refreshAnalyzeState === 'function') refreshAnalyzeState();
+
+    } else if (view === 'history') {
+      workspace.hidden = true;
+      historySection.hidden = false;
+      renderHistoryList();
+    }
+  }
+
+  // 👇 ADD THESE TWO BLOCKS BELOW setWorkspaceView 👇
+
+  // 1. The Click Listener for the Tabs
+  document.querySelectorAll('.w-tab').forEach(b => {
+    b.addEventListener('click', () => setWorkspaceView(b.dataset.view));
+  });
+
+  // 2. The Function that builds the Assessment History Grid
+  function renderHistoryList() {
+    historyList.innerHTML = '';
+    if (assignments.length === 0) {
+      historyList.innerHTML = `<div class="hc-empty">No past assessments found.</div>`;
+      return;
+    }
+
+    assignments.forEach(a => {
+      const card = document.createElement('div');
+      card.className = 'history-card';
+      card.innerHTML = `
+        <div class="hc-title">${escapeHTML(a.title)}</div>
+        <div class="hc-date">${new Date(a.created_at).toLocaleDateString()}</div>
+      `;
+      card.addEventListener('click', () => loadHistoricalResults(a.id, a.title));
+      historyList.appendChild(card);
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Auth modal                                                       */
   /* ---------------------------------------------------------------- */
   function openAuthModal(tab){
     loginError.textContent = '';
@@ -1192,7 +1302,7 @@
   });
 
   /* ---------------------------------------------------------------- */
-  /* Password show/hide toggles                                        */
+  /* Password show/hide toggles                                      */
   /* ---------------------------------------------------------------- */
   document.querySelectorAll('.password-toggle').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1207,7 +1317,7 @@
   });
 
   /* ---------------------------------------------------------------- */
-  /* Authenticated fetch helper                                        */
+  /* Authenticated fetch helper                                      */
   /* ---------------------------------------------------------------- */
   async function authFetch(url, options){
     options = options || {};
@@ -1222,7 +1332,7 @@
   function hideError(){ errorBanner.classList.remove('show'); }
 
   /* ---------------------------------------------------------------- */
-  /* Assignments                                                       */
+  /* Assignments                                                     */
   /* ---------------------------------------------------------------- */
   async function loadAssignments(){
     try {
@@ -1247,24 +1357,37 @@
   function populateAssignmentSelect(){
     const previouslySelected = assignmentSelect.value;
     assignmentSelect.innerHTML = '';
+    
     if (assignments.length === 0){
       assignmentEmptyNote.hidden = false;
       const opt = document.createElement('option');
-      opt.textContent = 'No assignments yet';
+      opt.textContent = 'No assessments yet';
       opt.value = '';
       assignmentSelect.appendChild(opt);
       assignmentSelect.disabled = true;
     } else {
       assignmentEmptyNote.hidden = true;
       assignmentSelect.disabled = false;
+
+      // 1. Create a blank, unselectable placeholder
+      const placeholder = document.createElement('option');
+      placeholder.textContent = '— Select an assessment —';
+      placeholder.value = '';
+      placeholder.disabled = true;
+      assignmentSelect.appendChild(placeholder);
+
+      // 2. Add your actual assessments to the list
       assignments.forEach((a) => {
         const opt = document.createElement('option');
         opt.value = a.id;
         opt.textContent = a.title;
         assignmentSelect.appendChild(opt);
       });
+      
+      // 3. Keep the old selection if you just added a new one, 
+      // otherwise default to the blank placeholder ('')
       const stillExists = assignments.some(a => a.id === previouslySelected);
-      assignmentSelect.value = stillExists ? previouslySelected : assignments[0].id;
+      assignmentSelect.value = stillExists ? previouslySelected : '';
     }
     refreshAnalyzeState();
   }
@@ -1310,7 +1433,7 @@
   });
 
   /* ---------------------------------------------------------------- */
-  /* Dropzone                                                          */
+  /* Dropzone                                                        */
   /* ---------------------------------------------------------------- */
   function humanSize(bytes){
     if (bytes < 1024) return bytes + ' B';
@@ -1363,7 +1486,7 @@
   });
 
   /* ---------------------------------------------------------------- */
-  /* Upload + grading                                                  */
+  /* Upload + grading                                                */
   /* ---------------------------------------------------------------- */
   const LOADING_STEPS = [
     'Extracting structural blueprints…',
@@ -1375,6 +1498,7 @@
   function runLoadingCycle(){
     let i = 0;
     loadingStatus.textContent = LOADING_STEPS[0];
+    loadingSubStatus.textContent = "Gemini is reasoning over AST evidence, not guessing";
     return setInterval(() => { i = (i + 1) % LOADING_STEPS.length; loadingStatus.textContent = LOADING_STEPS[i]; }, 1500);
   }
 
@@ -1399,6 +1523,8 @@
       try { payload = await res.json(); }
       catch(e){ throw new Error('Server returned an unreadable response.'); }
       if (!res.ok){ throw new Error(payload.detail || `Upload failed (HTTP ${res.status}).`); }
+      
+      resultsTitle.textContent = "Grading results";
       renderResults(payload);
     } catch (err) {
       showError(err.message || 'Something went wrong while uploading.');
@@ -1409,8 +1535,49 @@
     }
   });
 
+
   /* ---------------------------------------------------------------- */
-  /* Score gauge (signature "aperture" ring)                           */
+  /* Fetch Historical Results                                         */
+  /* ---------------------------------------------------------------- */
+  async function loadHistoricalResults(assignmentId, title) {
+    loadingOverlay.classList.add('show');
+    loadingStatus.textContent = 'Loading historical results...';
+    loadingSubStatus.textContent = 'Fetching previously graded submissions';
+    
+    try {
+      const res = await authFetch(`/api/assignments/${encodeURIComponent(assignmentId)}/results`);
+      if (!res.ok) throw new Error('Failed to fetch previous results');
+      const data = await res.json();
+
+      const payload = {
+        total_python_files: data.total_submissions,
+        graded: data.results.filter(r => (r.status && r.status.toLowerCase() === 'graded') || r.score !== null).length,
+        failed: data.results.filter(r => r.status && r.status.toLowerCase() === 'failed' && r.score === null).length,
+        results: data.results.map(r => {
+          const isSuccess = (r.status && r.status.toLowerCase() === 'graded') || r.score !== null;
+          return {
+            student_identifier: r.student_identifier,
+            file_name: r.file_name,
+            success: isSuccess,
+            score: r.score,
+            report_id: r.report_id,
+            error: !isSuccess ? 'Submission failed during processing.' : null
+          };
+        })
+      };
+
+      historySection.hidden = true;
+      resultsTitle.textContent = `Results: ${title}`;
+      renderResults(payload);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      loadingOverlay.classList.remove('show');
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Score gauge (signature "aperture" ring)                         */
   /* ---------------------------------------------------------------- */
   let gaugeIdCounter = 0;
   function scoreGaugeSVG(score, size){
@@ -1442,7 +1609,7 @@
   }
 
   /* ---------------------------------------------------------------- */
-  /* Results rendering                                                  */
+  /* Results rendering                                               */
   /* ---------------------------------------------------------------- */
   function renderResults(payload){
     resultsSection.hidden = false;
@@ -1453,7 +1620,7 @@
     resultsBody.innerHTML = '';
 
     if (!payload.results || payload.results.length === 0){
-      resultsBody.innerHTML = `<tr class="empty-row"><td colspan="4">No Python files were found in that archive.</td></tr>`;
+      resultsBody.innerHTML = `<tr class="empty-row"><td colspan="4">No submissions were found.</td></tr>`;
       return;
     }
 
@@ -1505,7 +1672,7 @@
   }
 
   /* ---------------------------------------------------------------- */
-  /* Feedback modal                                                     */
+  /* Feedback modal                                                  */
   /* ---------------------------------------------------------------- */
   let activeTab = 'feedback';
 
@@ -1595,7 +1762,7 @@
   modalClose.addEventListener('click', () => closeModalEl(modalOverlay));
 
   /* ---------------------------------------------------------------- */
-  /* Go                                                                 */
+  /* Go                                                              */
   /* ---------------------------------------------------------------- */
   renderHeaderActions();
   boot();

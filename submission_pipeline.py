@@ -241,12 +241,6 @@ def _process_student_project(
         combined_code = project.combined_source_code
         blueprint = CodeBlueprintExtractor.analyze(combined_code)
         
-        if not blueprint.get("success"):
-            err = blueprint.get("error") or {"message": "AST extraction failed"}
-            raise ValueError(
-                f"Syntax/parse error: {err.get('message')} (line {err.get('line')}, col {err.get('column')})"
-            )
-
         evaluation = engine.evaluate_submission(blueprint, rubric)
         metrics = blueprint.get("design_metrics") or {}
 
